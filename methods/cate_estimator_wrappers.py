@@ -300,7 +300,7 @@ class SLearnerWrapper(BaseCATEEstimatorWrapper):
         Xt = np.hstack((self.X, self.t.reshape(-1,1)))
         rand_search = RandomizedSearchCV(self.base_learner, self.param_grid,
                                          cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                         n_iter = 1, scoring = self.scoring, 
+                                         n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
                                          verbose = verbose)
         rand_search.fit(Xt, self.y)
         self.base_learner = rand_search.best_estimator_
@@ -400,7 +400,7 @@ class TLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_treat = RandomizedSearchCV(self.treatment_outcome_learner, 
                                                self.param_grid, 
                                                cv = self.cv.split(X_treat, y_treat), 
-                                               n_iter = n_iter, scoring = self.scoring, 
+                                               n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
                                                verbose = verbose)
         rand_search_treat.fit(X_treat, y_treat)
         self.treatment_outcome_learner = rand_search_treat.best_estimator_
@@ -408,7 +408,7 @@ class TLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_control = RandomizedSearchCV(self.control_outcome_learner, 
                                                  self.param_grid,
                                                  cv = self.cv.split(X_control, y_control), 
-                                                 n_iter = n_iter, scoring = self.scoring, 
+                                                 n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
                                                  verbose = verbose)
         rand_search_control.fit(X_control, y_control)
         self.control_outcome_learner = rand_search_control.best_estimator_
@@ -547,7 +547,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                    cv = self.cv.split(X_treat, 
                                                                       y_treat),
                                                    n_iter = n_iter, 
-                                                   scoring = self.scoring,
+                                                   scoring = self.scoring, n_jobs = -1,
                                                    verbose = verbose)
             rand_search_treat.fit(X_treat, y_treat)
             self.treatment_outcome_learner = rand_search_treat.best_estimator_
@@ -557,7 +557,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                      cv = self.cv.split(X_control, 
                                                                         y_control), 
                                                      n_iter = n_iter, 
-                                                     scoring = self.scoring,
+                                                     scoring = self.scoring, n_jobs = -1,
                                                      verbose = verbose)
             rand_search_control.fit(X_control, y_control)
             self.control_outcome_learner = rand_search_control.best_estimator_
@@ -579,7 +579,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                       self.effect_param_grid, 
                                                       cv = self.cv.split(X_treat, 
                                                                          y_treat), 
-                                                      n_iter = n_iter)
+                                                      n_iter = n_iter, n_jobs = -1)
         rand_search_treat_effect.fit(X_treat, y_treat - y0_treat_)
         self.treatment_effect_learner = rand_search_treat_effect.best_estimator_
         
@@ -587,7 +587,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                         self.effect_param_grid, 
                                                         cv = self.cv.split(X_control, 
                                                                            y_control), 
-                                                        n_iter = n_iter)
+                                                        n_iter = n_iter, n_jobs = -1)
         rand_search_control_effect.fit(X_control, y1_control_ - y_control)
         self.control_effect_learner = rand_search_control_effect.best_estimator_
         self.effect_learner_scores = (rand_search_treat_effect.best_score_, 
@@ -697,16 +697,16 @@ class RLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_outcome = RandomizedSearchCV(self.outcome_learner, 
                                   self.outcome_param_grid, 
                                   cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                  n_iter = n_iter, verbose = verbose)
+                                  n_iter = n_iter, n_jobs = -1, verbose = verbose)
         rand_search_outcome.fit(self.X, self.y)
         self.outcome_learner = rand_search_outcome.best_estimator_
         
         y_hat = cross_val_predict(self.outcome_learner, self.X, self.y, 
-                                  cv = self.cv.split(self.X, self.y + 2*self.t))
+                                  cv = self.cv.split(self.X, self.y + 2*self.t), n_jobs = -1)
         rand_search_effect = RandomizedSearchCV(self.effect_learner, 
                                  self.effect_param_grid, 
                                  cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                 n_iter = n_iter, verbose = verbose)
+                                 n_iter = n_iter, n_jobs = -1, verbose = verbose)
         rand_search_effect.fit(self.X, (self.y - y_hat) / (self.t - 0.5))
         self.effect_learner = rand_search_effect.best_estimator_
         self.learner_scores = (rand_search_outcome.best_score_, 
