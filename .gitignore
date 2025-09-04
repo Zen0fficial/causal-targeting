@@ -1,0 +1,33 @@
+# Environments
+cate_env/
+.venv/
+.env
+
+# Data and outputs
+/data/
+/output/
+*.dta
+*.xls
+*.xlsx
+*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Build
+build/
+dist/
+*.egg-info/
