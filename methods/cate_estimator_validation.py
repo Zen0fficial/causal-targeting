@@ -60,6 +60,8 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     if param_grids is None:
         param_grids = {name: {} for name in base_learners.keys()}
         tune = False
+    else:
+        tune = True
     
     # Add S-learner estimators
     s_learners = {}
