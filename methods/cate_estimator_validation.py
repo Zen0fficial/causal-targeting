@@ -57,23 +57,15 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     # User must supply either param_grids to tune the CATE estimators, or
     # tuned_params to set the hyperparameters of the CATE estimators
     assert param_grids is not None or tuned_params is not None
-    # Temporarily remove Random Forest ('rf') from consideration everywhere
-    base_learners = {name: est for name, est in base_learners.items() if name != "rf"}
     if param_grids is None:
         param_grids = {name: {} for name in base_learners.keys()}
         tune = False
-    else:
-        # Also drop any RF grids if provided
-        param_grids = {name: grid for name, grid in param_grids.items() if name != "rf"}
-        tune = True
     
     # Add S-learner estimators
     s_learners = {}
-    # Only include XGB for S-learner; RF is intentionally excluded
-    for name in ["xgb"]:
-        if name not in base_learners or name not in param_grids:
-            continue
-        s_learners["s_" + name] = SLearnerWrapper(X, t, y, cv, 
+    # Include common base learners if provided (e.g., XGB, RF)
+    for name in [n for n in ["xgb", "rf"] if n in base_learners and n in param_grids]:
+        s_learners["s_" + name] = SLearnerWrapper(X, t, y, cv,
                                       base_learner = base_learners[name],
                                       param_grid = param_grids[name])
         if tune:
@@ -115,7 +107,7 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     # possible combinations of base learners, and then select those we want
     # to keep
     r_learners_all = {}
-    r_names = [n for n in ["lasso", "xgb"] if n in base_learners and n in param_grids]
+    r_names = [n for n in ["lasso", "xgb", "rf"] if n in base_learners and n in param_grids]
     for name_1 in r_names:
         for name_2 in r_names:
             r_learners_all["r_" + name_1 + name_2] = RLearnerWrapper(X, t, y, cv,
@@ -124,8 +116,12 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
                                         outcome_param_grid = param_grids[name_1],
                                         effect_param_grid = param_grids[name_2])
     r_learners = {}
-    # Keep a subset without RF
-    r_learner_names = [n for n in ["r_lassolasso", "r_lassoxgb"] if n in r_learners_all]
+    # Keep a representative subset including RF where available
+    r_learner_names = [n for n in [
+        "r_lassolasso", "r_lassoxgb", "r_lassorf",
+        "r_rflasso", "r_rfrf", "r_rfxgb",
+        "r_xgblasso", "r_xgbrf", "r_xgbxgb"
+    ] if n in r_learners_all]
     for name in r_learner_names:
         r_learners[name] = r_learners_all[name]
         if tune:
