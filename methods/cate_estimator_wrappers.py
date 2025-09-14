@@ -10,8 +10,7 @@ from causalml.inference.meta import (BaseSClassifier, BaseRClassifier,
                                      BaseTClassifier, BaseXClassifier,
                                      BaseSRegressor, BaseRRegressor, 
                                      BaseTRegressor, BaseXRegressor)
-from causalml.inference.tree import CausalTreeRegressor
-from methods.causal_forest import CausalForest
+from causalml.inference.tree import CausalRandomForestRegressor, CausalTreeRegressor
 
 class CATEEstimatorResults:
     """
@@ -58,10 +57,8 @@ class CATEEstimatorResults:
         
         # Different metalearners have different signatures for their fit method
         if isinstance(CATE_estimator, (XLearnerWrapper, RLearnerWrapper)):
-            p = 0.5*np.ones_like(t_train) # Random experiment, so propensity score = 0.5
+            p = np.mean(t_train) * np.ones_like(t_train)
             self.meta_learner.fit(X_train, t_train, y_train, p)
-        elif isinstance(CATE_estimator, CausalForestWrapper):
-            self.meta_learner.fit(X_train, y_train, t_train)
         else:
             self.meta_learner.fit(X_train, t_train, y_train)
             
@@ -71,9 +68,10 @@ class CATEEstimatorResults:
         in training-validation set.
         """
         X = CATE_estimator.X
+        T = CATE_estimator.t
         # Different metalearners have different signatures for their predict method
         if isinstance(CATE_estimator, XLearnerWrapper):
-            self.tau = self.meta_learner.predict(X, p = 0.5*np.ones(X.shape[0])).squeeze()
+            self.tau = self.meta_learner.predict(X, p = np.mean(T) * np.ones(X.shape[0])).squeeze()
         else:
             self.tau = self.meta_learner.predict(X).squeeze()
             
@@ -707,7 +705,7 @@ class RLearnerWrapper(BaseCATEEstimatorWrapper):
                                  self.effect_param_grid, 
                                  cv = self.cv.split(self.X, self.y + 2*self.t), 
                                  n_iter = n_iter, n_jobs = -1, verbose = verbose)
-        rand_search_effect.fit(self.X, (self.y - y_hat) / (self.t - 0.5))
+        rand_search_effect.fit(self.X, (self.y - y_hat) / (self.t - np.mean(self.t)))
         self.effect_learner = rand_search_effect.best_estimator_
         self.learner_scores = (rand_search_outcome.best_score_, 
                                rand_search_effect.best_score_)
@@ -777,7 +775,7 @@ class CausalForestWrapper(BaseCATEEstimatorWrapper):
     """  
     def __init__(self, X, t, y, cv, params = {}):
         super().__init__(X, t, y, cv)
-        self.meta_learner = CausalForest(**params)
+        self.meta_learner = CausalRandomForestRegressor(**params)
         
 class EnsembleCATEEstimatorResults(CATEEstimatorResults):
     """

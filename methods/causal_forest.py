@@ -10,7 +10,7 @@ class CausalForest:
     
     def __init__(self, max_depth=-1, min_size=2, bootstrap=False, n_estimators=100, control_name=0, feature_split=0.25):
         self.bootstrap = bootstrap
-        self.trees=[CausalTreeRegressor(control_name=control_name, max_depth=max_depth, min_samples_leaf=min_size, feature_split=feature_split) for i in range(n_estimators)]
+        self.trees=[CausalTreeRegressor(control_name=control_name, max_depth=max_depth, min_samples_leaf=min_size) for i in range(n_estimators)]
         self.n_estimators = n_estimators
         
     def runIteration(self, i):

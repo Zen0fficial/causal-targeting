@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, KFold
 from tqdm import tqdm
-
+import multiprocessing as mp
 from methods.data_processing import prepare_df, separate_vars
 from methods.causal_functions import (get_subgroup_CATE, get_subgroup_t_statistic,
                                       get_subgroup_CATE_std, get_Neyman_ATE)
@@ -145,14 +145,14 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
         library["causal_tree_2"] = CausalTreeWrapper(X, t, y, cv, 
                                        params = {"min_samples_leaf" : 200})
         library["causal_forest_1"] = CausalForestWrapper(X, t, y, cv, 
-                                         params = {"min_size" : 50, 
-                                                   "feature_split" : 0.33, 
+                                         params = {"min_samples_leaf" : 50,
                                                    "max_depth" : 6,
+                                                   "n_jobs" : mp.cpu_count() - 1,
                                                    "bootstrap" : True})
         library["causal_forest_2"] = CausalForestWrapper(X, t, y, cv,
-                                         params = {"min_size" : 200, 
-                                                   "feature_split" : 0.33, 
+                                         params = {"min_samples_leaf" : 200,
                                                    "max_depth" : 6,
+                                                   "n_jobs" : mp.cpu_count() - 1,
                                                    "bootstrap" : True})
     
     return library
