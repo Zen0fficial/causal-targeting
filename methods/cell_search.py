@@ -287,7 +287,7 @@ class CellSearch:
         self.te_df = CellSearch.recode_samples_for_fpgrowth(self.data_df)
         
 
-    def get_true_and_false_positives(self, penalty = 1, max_features = None):
+    def get_true_and_false_positives(self, penalty = 1):
         """
         Produces a data frame which can be used to determine which cells offer
         a good approximation of the quantile-based top subgroup. The returned 
@@ -310,10 +310,6 @@ class CellSearch:
             tpfp_score = TP - penalty * FP. Hence, a higher penalty prioritizes 
             finding cells that have fewer individuals that do not belong to the 
             quantile-based top subgroup, but may potentially be smaller in size.
-        max_features: int or None
-            Optional upper bound on the number of features in a cell (itemset).
-            When provided, it is used to limit FPGrowth via its max_len argument,
-            which can substantially reduce runtime and memory on large datasets.
         
         Returns
         -------
@@ -326,61 +322,34 @@ class CellSearch:
                                      self.top_quantile_indicator]
         rest_df = self.te_df[self.active_set_indicator & 
                              ~self.top_quantile_indicator]
-
-        # Edge cases: if the top subset is empty there are no candidates; if rest
-        # is empty then all false positives are zero.
-        if top_quantile_df.shape[0] == 0:
-            return pd.DataFrame({"itemsets": [], "true_pos": [], "false_pos": [],
-                                 "num_features": [], "cell_size": [],
-                                 "tpfp_score": []})
-
-        # Compute FPGrowth results for the quantile-based top subgroup only.
-        # Limit the itemset length when max_features is provided to reduce search space.
-        top_quantile_fpg_df = fpgrowth(
-            top_quantile_df,
-            use_colnames = True,
-            min_support = self.min_support,
-            max_len = max_features if max_features is not None else None
-        )
-
-        if top_quantile_fpg_df.shape[0] == 0:
-            return pd.DataFrame({"itemsets": [], "true_pos": [], "false_pos": [],
-                                 "num_features": [], "cell_size": [],
-                                 "tpfp_score": []})
-
-        # True positives are derived from supports on the top subset.
-        true_pos = (top_quantile_fpg_df["support"] * top_quantile_df.shape[0]).astype(int)
-
-        # Compute false positives by scanning the complement (rest_df) for the
-        # exact same itemsets only, avoiding a second, potentially expensive
-        # FPGrowth call on the rest subset.
-        if rest_df.shape[0] == 0:
-            false_pos = pd.Series(np.zeros_like(true_pos), index = top_quantile_fpg_df.index)
-        else:
-            # Prepare fast lookup from item name to column index and a numpy view.
-            rest_columns = list(rest_df.columns)
-            col_to_idx = {col: idx for idx, col in enumerate(rest_columns)}
-            rest_mat = rest_df.values
-
-            def count_in_rest(itemset):
-                idxs = [col_to_idx[item] for item in itemset if item in col_to_idx]
-                if len(idxs) == 0:
-                    return 0
-                # Boolean AND across the selected columns, then count True rows.
-                return int(np.count_nonzero(np.all(rest_mat[:, idxs], axis = 1)))
-
-            false_pos = top_quantile_fpg_df["itemsets"].apply(count_in_rest)
-
-        cell_ranking_df = pd.DataFrame({
-            "itemsets": top_quantile_fpg_df["itemsets"],
-            "true_pos": true_pos.astype(int).values,
-            "false_pos": false_pos.astype(int).values
-        })
+        
+        # Compute FPGrowth results for both the quantile-based top subgroup and 
+        # its complement.
+        top_quantile_fpg_df = fpgrowth(top_quantile_df, use_colnames = True, 
+                                       min_support = self.min_support)
+        rest_fpg_df = fpgrowth(rest_df, use_colnames = True, 
+                               min_support = self.min_support)
+        
+        # Create the data frame used to store the results. We first merge the
+        # results of FPGrowth from the previous step. The number of true and
+        # false positives can be computed from the support of the cell.
+        cell_ranking_df = top_quantile_fpg_df.merge(rest_fpg_df, how = "left",
+                                                    on = "itemsets")
+        cell_ranking_df.fillna(value = 0, inplace = True)
+        cell_ranking_df["true_pos"] = (cell_ranking_df["support_x"] \
+                                       * top_quantile_df.shape[0]).astype(int)
+        cell_ranking_df["false_pos"] = (cell_ranking_df["support_y"] \
+                                        * rest_df.shape[0]).astype(int)
+        cell_ranking_df = cell_ranking_df[["itemsets", "true_pos", 
+                                           "false_pos"]]
         cell_ranking_df["num_features"] = cell_ranking_df["itemsets"].apply(len)
-        cell_ranking_df["cell_size"]  = cell_ranking_df["false_pos"] + cell_ranking_df["true_pos"]
-        cell_ranking_df["tpfp_score"] = cell_ranking_df["true_pos"] - penalty * cell_ranking_df["false_pos"]
-        cell_ranking_df.sort_values(by = ["tpfp_score", "num_features"], ascending = [False, True], inplace = True)
-
+        cell_ranking_df["cell_size"]  = cell_ranking_df["false_pos"] \
+                                        + cell_ranking_df["true_pos"]
+        cell_ranking_df["tpfp_score"] = cell_ranking_df["true_pos"] \
+                                    - penalty * cell_ranking_df["false_pos"]
+        cell_ranking_df.sort_values(by = ["tpfp_score", "num_features"],
+                                    ascending = [False, True], inplace = True)
+        
         return cell_ranking_df
 
     def get_top_cells(self, max_features, penalty = 1, tol = 0.05):
@@ -407,7 +376,7 @@ class CellSearch:
         top_cells: list of sets
             The list of top cells
         """
-        cell_ranking_df = self.get_true_and_false_positives(penalty, max_features=max_features) \
+        cell_ranking_df = self.get_true_and_false_positives(penalty) \
                                         .query(f"num_features <= {max_features}")
         if cell_ranking_df.shape[0] == 0:
             return []
