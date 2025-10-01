@@ -1,0 +1,39 @@
+Metadata-Version: 2.1
+Name: forestci
+Version: 0.6
+Summary: forestci: confidence intervals for scikit-learn forest algorithms
+Home-page: http://github.com/scikit-learn-contrib/forest-confidence-interval
+Download-URL: 
+Author: Ariel Rokem, Bryna Hazelton, Kivan Polimis
+Author-email: arokem@uw.edu
+Maintainer: Ariel Rokem
+Maintainer-email: arokem@uw.edu
+License: MIT
+Platform: OS Independent
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering
+License-File: LICENSE
+Requires-Dist: numpy (>=1.20)
+Requires-Dist: scikit-learn (>=0.23.1)
+
+
+
+sklearn forest ci
+=================
+
+`forest-confidence-interval` is a Python module for calculating variance and
+adding confidence intervals to scikit-learn random forest regression or
+classification objects. The core functions calculate an in-bag and error bars
+for random forest objects
+
+Please read the repository README_ on Github or our documentation_
+
+.. _README: https://github.com/scikit-learn-contrib/forest-confidence-interval/blob/master/README.md
+
+.. _documentation: http://contrib.scikit-learn.org/forest-confidence-interval/
+
