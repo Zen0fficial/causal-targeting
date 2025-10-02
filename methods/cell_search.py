@@ -287,7 +287,8 @@ class CellSearch:
         self.te_df = CellSearch.recode_samples_for_fpgrowth(self.data_df)
         
 
-    def get_true_and_false_positives(self, penalty = 1):
+    def get_true_and_false_positives(self, penalty = 1, subsample_frac = None,
+                                     random_state = None):
         """
         Produces a data frame which can be used to determine which cells offer
         a good approximation of the quantile-based top subgroup. The returned 
@@ -310,6 +311,15 @@ class CellSearch:
             tpfp_score = TP - penalty * FP. Hence, a higher penalty prioritizes 
             finding cells that have fewer individuals that do not belong to the 
             quantile-based top subgroup, but may potentially be smaller in size.
+        subsample_frac: float or None
+            Optional fraction (0 < subsample_frac ≤ 1) of units to randomly
+            sample from each group (top-quantile subset and its complement)
+            before running FPGrowth, to reduce computation. When provided,
+            supports are computed on the subsample but counts are scaled to the
+            full group sizes.
+        random_state: int or None
+            Optional seed for reproducible subsampling when subsample_frac is
+            used.
         
         Returns
         -------
@@ -318,10 +328,25 @@ class CellSearch:
         
         """
 
-        top_quantile_df = self.te_df[self.active_set_indicator & 
-                                     self.top_quantile_indicator]
-        rest_df = self.te_df[self.active_set_indicator & 
-                             ~self.top_quantile_indicator]
+        top_mask = self.active_set_indicator & self.top_quantile_indicator
+        rest_mask = self.active_set_indicator & (~self.top_quantile_indicator)
+        top_quantile_df_full = self.te_df[top_mask]
+        rest_df_full = self.te_df[rest_mask]
+
+        # Optional subsampling to reduce computational load
+        if subsample_frac is not None and 0 < subsample_frac < 1:
+            # Determine deterministic sample sizes (at least 1 when non-empty)
+            def subsample_frame(df):
+                n = df.shape[0]
+                if n == 0:
+                    return df
+                n_sub = max(1, int(round(subsample_frac * n)))
+                return df.sample(n = n_sub, random_state = random_state, replace = False)
+            top_quantile_df = subsample_frame(top_quantile_df_full)
+            rest_df = subsample_frame(rest_df_full)
+        else:
+            top_quantile_df = top_quantile_df_full
+            rest_df = rest_df_full
         
         # Compute FPGrowth results for both the quantile-based top subgroup and 
         # its complement.
@@ -336,10 +361,12 @@ class CellSearch:
         cell_ranking_df = top_quantile_fpg_df.merge(rest_fpg_df, how = "left",
                                                     on = "itemsets")
         cell_ranking_df.fillna(value = 0, inplace = True)
+        # Use support proportions from (sub)sampled data to estimate counts at
+        # full group sizes to keep results comparable across subsampling levels.
         cell_ranking_df["true_pos"] = (cell_ranking_df["support_x"] \
-                                       * top_quantile_df.shape[0]).astype(int)
+                                       * top_quantile_df_full.shape[0]).astype(int)
         cell_ranking_df["false_pos"] = (cell_ranking_df["support_y"] \
-                                        * rest_df.shape[0]).astype(int)
+                                        * rest_df_full.shape[0]).astype(int)
         cell_ranking_df = cell_ranking_df[["itemsets", "true_pos", 
                                            "false_pos"]]
         cell_ranking_df["num_features"] = cell_ranking_df["itemsets"].apply(len)
@@ -352,7 +379,8 @@ class CellSearch:
         
         return cell_ranking_df
 
-    def get_top_cells(self, max_features, penalty = 1, tol = 0.05):
+    def get_top_cells(self, max_features, penalty = 1, tol = 0.05,
+                      subsample_frac = None, random_state = None):
         """
         Produce a list of the top cells. These are cells whose tpfp_score lies 
         within a prescribed tolerance level of the best score, and such that
@@ -370,13 +398,21 @@ class CellSearch:
             tp_fp score must be within false_negatives * tol of the top score, where
             false_negatives is the number of individuals in the quantile-based top 
             subgroup that are not yet in the union of the cell cover.
+        subsample_frac: float or None
+            Passed to get_true_and_false_positives() to subsample units for
+            faster mining.
+        random_state: int or None
+            Seed for reproducible subsampling.
             
         Returns
         -------
         top_cells: list of sets
             The list of top cells
         """
-        cell_ranking_df = self.get_true_and_false_positives(penalty) \
+        cell_ranking_df = self.get_true_and_false_positives(
+                                        penalty,
+                                        subsample_frac = subsample_frac,
+                                        random_state = random_state) \
                                         .query(f"num_features <= {max_features}")
         if cell_ranking_df.shape[0] == 0:
             return []
@@ -419,7 +455,7 @@ class CellSearch:
     
     
     def add_k_cells(self, k, max_features, penalty = 1, random = True, 
-                    tol = 0.05):
+                    tol = 0.05, subsample_frac = None, random_state = None):
         """
         Add (at most) k cells to the cell cover. For each of k iterations, we check
         if there is at least one top cell that has a non-negative tpfp_score. If so
@@ -445,7 +481,9 @@ class CellSearch:
             subgroup that are not yet in the union of the cell cover.   
         """
         for _ in range(k):
-            top_cells = self.get_top_cells(max_features, penalty, tol)
+            top_cells = self.get_top_cells(max_features, penalty, tol,
+                                           subsample_frac = subsample_frac,
+                                           random_state = random_state)
             if len(top_cells) == 0:
                 return None
             elif random:
