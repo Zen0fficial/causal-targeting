@@ -926,12 +926,22 @@ def recode_itemset_into_query(itemset):
     """
     query_string = ""
     for item in itemset:
-        feature = item[:-2]
-        level = item[-1]
-        if len(query_string) > 0:
-            query_string = query_string + " & " + feature + "==" + level
+        # Robustly split token of the form "feature_value" by the last underscore
+        if "_" in item:
+            feature, level = item.rsplit("_", 1)
         else:
-            query_string = feature + "==" + level
+            feature, level = item, "1"
+        # Quote non-numeric levels for pandas query
+        try:
+            float(level)
+            level_expr = level
+        except ValueError:
+            escaped = level.replace('"', '\\"')
+            level_expr = f'"{escaped}"'
+        if len(query_string) > 0:
+            query_string = query_string + " & " + feature + "==" + level_expr
+        else:
+            query_string = feature + "==" + level_expr
 
     return query_string
 
