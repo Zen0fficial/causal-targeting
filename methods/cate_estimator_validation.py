@@ -4,8 +4,11 @@ import copy
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, KFold
+from sklearn.linear_model import LogisticRegression
+from sklearn.base import is_regressor
 from tqdm import tqdm
 import multiprocessing as mp
+from typing import cast, Dict, Any
 from methods.data_processing import prepare_df, separate_vars
 from methods.causal_functions import (get_subgroup_CATE, get_subgroup_t_statistic,
                                       get_subgroup_CATE_std, get_Neyman_ATE)
@@ -20,7 +23,8 @@ from methods.cate_estimator_wrappers import (SLearnerWrapper, TLearnerWrapper,
 #============================================================#
 
 def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
-                           tuned_params = None, n_iter = 200, verbose = 0):
+                           tuned_params = None, n_iter = 200, verbose = 0,
+                           propensity_learner: LogisticRegression | None = None):
     """
     Make a library of CATE estimators in the form of a dictionary. If 
     hyperparameters are given, return the library of CATE estimators with those 
@@ -47,6 +51,9 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
         Number of iterations for RandomizedSearchCV used to tune parameters
     verbose: int
         verbose argument for RandomizedSearchCV
+    propensity_learner: sklearn classifier or None
+        Optional propensity model to supply to X- and R-learners. If None,
+        a sensible LogisticRegression will be constructed.
     
     Returns
     -------
@@ -63,6 +70,10 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     else:
         tune = True
     
+    # Detect outcome type (binary vs continuous)
+    unique_y = np.unique(y)
+    is_binary_outcome = (unique_y.size == 2) and np.all(np.isin(unique_y, [0, 1]))
+
     # Add S-learner estimators
     s_learners = {}
     # Include common base learners if provided (e.g., XGB, RF)
@@ -77,6 +88,9 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     # Add T-learner estimators
     t_learners = {}
     for name, base_learner in base_learners.items():
+        # Skip classifiers if the outcome is continuous
+        if (not is_binary_outcome) and (not is_regressor(base_learner)):
+            continue
         t_learners["t_" + name] = TLearnerWrapper(X, t, y, cv, 
                                       base_learner = base_learner, 
                                       param_grid = param_grids[name])
@@ -88,6 +102,9 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     x_learners = {}
     effect_learner = "lasso"
     for name, base_learner in base_learners.items():
+        # Skip classifiers if the outcome is continuous
+        if (not is_binary_outcome) and (not is_regressor(base_learner)):
+            continue
         # Initialize the XLearnerWrapper object to have the same params_treat 
         # and params_control as that of the TLearnerWrapper with the same 
         # outcome learner choices.
@@ -100,7 +117,8 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
                                             .treatment_outcome_learner.get_params(),
                                      params_control = t_learners["t_" + name] \
                                             .control_outcome_learner.get_params(),
-                                     effect_param_grid = param_grids[effect_learner])
+                                     effect_param_grid = param_grids[effect_learner],
+                                     propensity_learner = propensity_learner)
         if tune:
             print("Tuning " + "x_" + name)
             x_learners["x_" + name].tune_params(n_iter)
@@ -109,14 +127,16 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     # possible combinations of base learners, and then select those we want
     # to keep
     r_learners_all = {}
-    r_names = [n for n in ["lasso", "xgb", "rf"] if n in base_learners and n in param_grids]
+    r_names = [n for n in ["lasso", "xgb", "rf"] if n in base_learners and n in param_grids
+               and (is_binary_outcome or is_regressor(base_learners[n]))]
     for name_1 in r_names:
         for name_2 in r_names:
             r_learners_all["r_" + name_1 + name_2] = RLearnerWrapper(X, t, y, cv,
                                         outcome_learner = base_learners[name_1], 
                                         effect_learner = base_learners[name_2],
                                         outcome_param_grid = param_grids[name_1],
-                                        effect_param_grid = param_grids[name_2])
+                                        effect_param_grid = param_grids[name_2],
+                                        propensity_learner = propensity_learner)
     r_learners = {}
     # Keep a representative subset including RF where available
     r_learner_names = [n for n in [
@@ -138,19 +158,21 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
     # set them using the supplied tune_params dictionary. Also add the tree-based
     # estimators (that we can't tune) into the library
     if not tune:
+        assert tuned_params is not None
+        tuned_params_map = cast(Dict[str, Dict[str, Any]], tuned_params)
         for estimator_name, estimator in library.items():
-            estimator.set_params(tuned_params[estimator_name])
+            estimator.set_params(tuned_params_map[estimator_name])
         library["causal_tree_1"] = CausalTreeWrapper(X, t, y, cv,
-                                       params = {"min_samples_leaf" : 50})
+                                       params = {"min_samples_leaf" : 500})
         library["causal_tree_2"] = CausalTreeWrapper(X, t, y, cv, 
-                                       params = {"min_samples_leaf" : 200})
+                                       params = {"min_samples_leaf" : 2000})
         library["causal_forest_1"] = CausalForestWrapper(X, t, y, cv, 
-                                         params = {"min_samples_leaf" : 50,
+                                         params = {"min_samples_leaf" : 500,
                                                    "max_depth" : 6,
                                                    "n_jobs" : mp.cpu_count() - 1,
                                                    "bootstrap" : True})
         library["causal_forest_2"] = CausalForestWrapper(X, t, y, cv,
-                                         params = {"min_samples_leaf" : 200,
+                                         params = {"min_samples_leaf" : 2000,
                                                    "max_depth" : 6,
                                                    "n_jobs" : mp.cpu_count() - 1,
                                                    "bootstrap" : True})
@@ -659,15 +681,13 @@ def get_estimator_monotonicity_results(CATE_estimator, n_bins = 5,
     col_names = [f"[{q_values[i]:.1f},{q_values[i+1]:.1f}] vs \
                  [{q_values[i+1]:.1f}, {q_values[i+2]:.1f}]" 
                  for i in range(n_bins-1)] + [col_name]
-    monotonicity_df = pd.DataFrame({}, columns = col_names)
+    rows = []
     for fold in range(CATE_estimator.n_splits):
         bin_CATEs = get_bin_CATEs(CATE_estimator, fold, n_bins, "val")
         is_increasing = list(check_if_sequence_increasing(bin_CATEs))
         is_increasing.append(func(bin_CATEs))
-        monotonicity_df = monotonicity_df.append(pd.Series(is_increasing, 
-                                                           index = col_names),
-                                                 ignore_index = True) \
-                                                    .astype(int)
+        rows.append(is_increasing)
+    monotonicity_df = pd.DataFrame(rows, columns = col_names).astype(int)
     return monotonicity_df
 
 def get_estimator_monotonicity_results_v2(CATE_estimator, q_values, 
@@ -705,9 +725,9 @@ def get_estimator_monotonicity_results_v2(CATE_estimator, q_values,
         q_values = [1-q for q in q_values]
     col_names = [f"[{0.},{q:.1f}] vs [{q}, 1.]" for q in q_values] 
     
-    monotonicity_df = pd.DataFrame({}, columns = col_names)
     y = CATE_estimator.y
     t = CATE_estimator.t
+    rows = []
     for fold in range(CATE_estimator.n_splits):
         is_increasing = []
         for q in q_values:
@@ -716,10 +736,8 @@ def get_estimator_monotonicity_results_v2(CATE_estimator, q_values,
             bot_CATE = get_subgroup_CATE(y, t, subgroup_indicator)
             top_CATE = get_subgroup_CATE(y, t, ~subgroup_indicator)
             is_increasing.append(bot_CATE < top_CATE)
-        monotonicity_df = monotonicity_df.append(pd.Series(is_increasing, 
-                                                           index = col_names),
-                                                 ignore_index = True) \
-                                                        .astype(int)
+        rows.append(is_increasing)
+    monotonicity_df = pd.DataFrame(rows, columns = col_names).astype(int)
     return monotonicity_df
         
 
