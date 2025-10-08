@@ -327,3 +327,87 @@ def winsorize_variables(data: pd.DataFrame,
     return data_winsorized
 
 
+
+def filter_extreme_propensity_cells(
+    data: pd.DataFrame,
+    binary_features: List[str],
+    treatment_var: str,
+    low_threshold: float = 0.1,
+    high_threshold: float = 0.9,
+    min_size: int = 1,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Filter unit sets (cells) defined by unique combinations of provided binary
+    features whose within-cell propensity scores are < low_threshold or
+    > high_threshold.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Input dataset containing the treatment column and binary feature columns.
+    binary_features : list[str]
+        Columns that define the cells. Typically 0/1 or boolean features.
+    treatment_var : str
+        Name of the binary treatment indicator column (values in {0,1}).
+    low_threshold : float, default 0.1
+        Lower propensity cutoff; cells with propensity < this are selected.
+    high_threshold : float, default 0.9
+        Upper propensity cutoff; cells with propensity > this are selected.
+    min_size : int, default 1
+        Minimum number of observations required for a cell to be considered.
+
+    Returns
+    -------
+    filtered_rows : pd.DataFrame
+        Subset of `data` containing only rows that belong to extreme-propensity
+        cells. Includes two added columns: 'cell_propensity' and 'cell_size'.
+    extreme_cells : pd.DataFrame
+        Summary of selected cells with columns binary_features +
+        ['cell_propensity','cell_size'].
+    """
+    # Basic validations
+    missing_cols = [c for c in [treatment_var] + binary_features if c not in data.columns]
+    if missing_cols:
+        raise KeyError(f"Columns not found in data: {missing_cols}")
+
+    # Ensure treatment is binary 0/1
+    t_values = set(pd.Series(data[treatment_var]).dropna().unique().tolist())
+    if not t_values.issubset({0, 1}):
+        raise ValueError(
+            f"Treatment column '{treatment_var}' must be binary with values in {{0,1}}; found {sorted(t_values)}"
+        )
+
+    # Coerce boolean features to integers for consistent grouping
+    df = data.copy()
+    for f in binary_features:
+        if pd.api.types.is_bool_dtype(df[f]):
+            df[f] = df[f].astype(int)
+
+    # Group by cells and compute propensity and size
+    grouped = (
+        df.groupby(binary_features, dropna=False, sort=False)
+          .agg(cell_propensity=(treatment_var, "mean"), cell_size=(treatment_var, "size"))
+    )
+
+    # Select extreme cells by propensity and size
+    mask_extreme = (
+        (grouped["cell_propensity"] < low_threshold)
+        | (grouped["cell_propensity"] > high_threshold)
+    ) & (grouped["cell_size"] >= int(min_size))
+    # Reset index and immediately copy to avoid fragmented frame warnings
+    extreme_cells = grouped.loc[mask_extreme].reset_index().copy()
+
+    if extreme_cells.empty:
+        # Return empty filtered set with expected columns
+        return (
+            df.iloc[0:0].copy(),
+            extreme_cells,
+        )
+
+    # Keep only rows that belong to the selected cells
+    filtered_rows = df.merge(extreme_cells[binary_features], on=binary_features, how="inner")
+    # Attach cell-level metrics to each row
+    filtered_rows = filtered_rows.merge(extreme_cells, on=binary_features, how="left")
+
+    return filtered_rows, extreme_cells
+

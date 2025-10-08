@@ -159,17 +159,30 @@ def get_subgroup_t_statistic(y, t, subgroup_indicator,
     N_c = N_c_sg + N_c_rest
     N_t = N_t_sg + N_t_rest
     
-    # Try computing the variance estimate, if it fails (because sample size is 
-    # too small), return nan
+    # Guard against zero counts; if any denominator would be zero, return NaN
+    if (N_c == 0 or N_t == 0 or
+        N_c_sg == 0 or N_t_sg == 0 or
+        N_c_rest == 0 or N_t_rest == 0):
+        return np.nan
+
+    # Try computing the variance estimate, if it fails (e.g., small sample size), return NaN
     try:
-        var_sg_ = np.var(y0_obs_sg, ddof = 1) * N_c_sg * (1/N_c_sg - 1/N_c)**2 \
-            + np.var(y1_obs_sg, ddof = 1) * N_t_sg * (1/N_t_sg - 1/N_t)**2
-        var_rest_ = np.var(y0_obs_rest, ddof = 1) * N_c_rest / N_c**2 \
-            + np.var(y1_obs_rest, ddof = 1) * N_t_rest / N_t**2
-    except:
-        return(np.NaN)
-    
-    t_statistic = (CATE_ - ATE_) / np.sqrt(var_sg_ + var_rest_)
+        var_sg_ = (
+            np.var(y0_obs_sg, ddof=1) * N_c_sg * (1 / N_c_sg - 1 / N_c) ** 2
+            + np.var(y1_obs_sg, ddof=1) * N_t_sg * (1 / N_t_sg - 1 / N_t) ** 2
+        )
+        var_rest_ = (
+            np.var(y0_obs_rest, ddof=1) * N_c_rest / (N_c ** 2)
+            + np.var(y1_obs_rest, ddof=1) * N_t_rest / (N_t ** 2)
+        )
+    except Exception:
+        return np.nan
+
+    var_total = var_sg_ + var_rest_
+    if not np.isfinite(var_total) or var_total <= 0:
+        return np.nan
+
+    t_statistic = (CATE_ - ATE_) / np.sqrt(var_total)
     
     return t_statistic
 
@@ -192,9 +205,30 @@ def get_relative_risk(y, t):
     """
     Y0_obs = y[t==0]
     Y1_obs = y[t==1]
-    RR_ = Y1_obs.mean() / Y0_obs.mean()
-    
-    return RR_
+    n0 = len(Y0_obs)
+    n1 = len(Y1_obs)
+    # If either group is empty, RR is undefined
+    if n0 == 0 or n1 == 0:
+        return np.nan
+
+    # Treat y as binary event indicator; count events
+    x0 = Y0_obs.sum()
+    x1 = Y1_obs.sum()
+    f0 = n0 - x0  # non-events in control
+    f1 = n1 - x1  # non-events in treated
+
+    # Apply Haldane–Anscombe correction when any cell is zero to avoid division by zero
+    if (x0 == 0) or (x1 == 0) or (f0 == 0) or (f1 == 0):
+        x0 = x0 + 0.5
+        x1 = x1 + 0.5
+        n0 = n0 + 1.0
+        n1 = n1 + 1.0
+
+    p0 = x0 / n0
+    p1 = x1 / n1
+    RR_ = p1 / p0
+
+    return float(RR_)
 
 def get_relative_risk_CI(y, t):
     """
@@ -212,24 +246,45 @@ def get_relative_risk_CI(y, t):
     RR_CI: array-like of shape (2,)
        A 95% CI for the plug-in estimate for relative risk.
     """
-    def get_log_RR_var(y, t):
-        """
-        Helper function to compute the variance for log(plug-in estimate for RR) 
-        using the delta method.
-        """
-        Y0_obs = y[t==0]
-        Y1_obs = y[t==1]
-        n0 = len(Y0_obs)
-        n1 = len(Y1_obs)
-        x0 = Y0_obs.sum()
-        x1 = Y1_obs.sum()
-        
-        return 1/x0 - 1/n0 + 1/x1 - 1/n1
-    
-    RR_ = get_relative_risk(y, t)
-    log_RR_var = get_log_RR_var(y, t)
-    log_RR_CI = np.array((np.log(RR_) - 1.96 * np.sqrt(log_RR_var),
-                          np.log(RR_) + 1.96 * np.sqrt(log_RR_var)))
+    # Build counts
+    Y0_obs = y[t==0]
+    Y1_obs = y[t==1]
+    n0 = len(Y0_obs)
+    n1 = len(Y1_obs)
+
+    # If either group is empty, CI is undefined
+    if n0 == 0 or n1 == 0:
+        return np.array([np.nan, np.nan], dtype=float)
+
+    x0 = Y0_obs.sum()
+    x1 = Y1_obs.sum()
+    f0 = n0 - x0
+    f1 = n1 - x1
+
+    # Apply Haldane–Anscombe correction when any cell is zero
+    if (x0 == 0) or (x1 == 0) or (f0 == 0) or (f1 == 0):
+        x0 = x0 + 0.5
+        x1 = x1 + 0.5
+        n0 = n0 + 1.0
+        n1 = n1 + 1.0
+
+    # Compute RR and its log-variance using delta method
+    p0 = x0 / n0
+    p1 = x1 / n1
+    RR_ = p1 / p0
+
+    # Guard against numerical issues
+    if RR_ <= 0 or not np.isfinite(RR_):
+        return np.array([np.nan, np.nan], dtype=float)
+
+    log_RR_var = 1.0/x0 - 1.0/n0 + 1.0/x1 - 1.0/n1
+    if not np.isfinite(log_RR_var) or log_RR_var < 0:
+        return np.array([np.nan, np.nan], dtype=float)
+
+    z = 1.96
+    log_RR = np.log(RR_)
+    log_RR_CI = np.array((log_RR - z * np.sqrt(log_RR_var),
+                          log_RR + z * np.sqrt(log_RR_var)))
     RR_CI = np.exp(log_RR_CI)
-    
+
     return RR_CI

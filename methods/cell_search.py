@@ -48,15 +48,17 @@ def get_feature_mean_difference(CATE_estimator, q_bot, q_top,
         The feature mean difference importance scores
     """
     
-    feature_mean_differences = np.zeros(CATE_estimator.X.shape[1])
+    feature_mean_differences = np.zeros(CATE_estimator.X.shape[1], dtype = float)
     for result in CATE_estimator.results.values():
         sg_indicator = result.get_subgroup_indicator(q_bot, q_top, "all")
-        X_sg = CATE_estimator.X[sg_indicator,:]
-        X_rest = CATE_estimator.X[~sg_indicator,:]
+        X_sg = np.asarray(CATE_estimator.X[sg_indicator,:], dtype = float)
+        X_rest = np.asarray(CATE_estimator.X[~sg_indicator,:], dtype = float)
         
         # adding normalized differences
-        temp = X_sg.mean(axis = 0) - X_rest.mean(axis = 0)
-        feature_mean_differences += temp / np.sum(np.abs(temp))
+        temp = np.nanmean(X_sg, axis = 0) - np.nanmean(X_rest, axis = 0)
+        denom = np.sum(np.abs(temp))
+        if denom and np.isfinite(denom):
+            feature_mean_differences += (temp / denom).astype(float)
     feature_mean_differences = feature_mean_differences / CATE_estimator.n_splits
     if features is not None:
         feature_mean_differences = pd.Series(feature_mean_differences, 
@@ -108,7 +110,7 @@ def get_subgroup_log_classifier_coef(CATE_estimator, q_bot, q_top,
     return log_classifier_coef    
 
 def get_feature_importance_scores(CATE_estimator, kind, q_values, 
-                                  features, dir_neg = True):
+                                  features, dir_neg=True):
     """
     Compute feature importance scores for a given CATE estimator, with respect to
     a range of different choices of q values for thresholds.
@@ -819,10 +821,17 @@ def get_cell_significance_results(cell_list, y, t, data_df, CATE_estimator = Non
                 val_t_stat = get_subgroup_t_statistic(y, t, indicator,
                                                       result.val_indicator)
                 val_t_stat_values.append(val_t_stat)
-            val_t_stat_values = np.array(val_t_stat_values)
-            val_t_stat_mean = val_t_stat_values.mean()
-            val_t_stat_std = val_t_stat_values.std() / \
-                             np.sqrt(len(val_t_stat_values))
+            val_t_stat_values = np.array(val_t_stat_values, dtype=float)
+            # Ignore NaNs when aggregating across folds
+            valid_mask = np.isfinite(val_t_stat_values)
+            if valid_mask.any():
+                val_t_stat_mean = np.nanmean(val_t_stat_values)
+                # Use sample std across valid entries; divide by sqrt(n_valid)
+                n_valid = valid_mask.sum()
+                val_t_stat_std = np.nanstd(val_t_stat_values, ddof=1) / np.sqrt(n_valid) if n_valid > 1 else np.nan
+            else:
+                val_t_stat_mean = np.nan
+                val_t_stat_std = np.nan
             cell_entry += [val_t_stat_mean, val_t_stat_std]
         return cell_entry
     
@@ -963,9 +972,53 @@ def get_cell_indicator(itemset, data_df):
         The cell indicator.
     """
     
-    query_string = recode_itemset_into_query(itemset)
-    cell_indices = data_df.query(query_string).index
-    cell_indicator = np.array([i in cell_indices for i in 
-                               range(data_df.shape[0])])
-    
-    return cell_indicator
+    # Build a boolean mask directly to avoid pandas.query issues with
+    # non-identifier column names (dots/spaces) and mixed dtypes.
+    mask = pd.Series(True, index=data_df.index)
+    for item in itemset:
+        # Robustly split token of the form "feature_value" by the last underscore
+        if "_" in item:
+            feature, level = item.rsplit("_", 1)
+        else:
+            feature, level = item, "1"
+        feature = feature.strip()
+        level = level.strip()
+
+        # Ensure the feature exists; if not, try simple normalization fallback
+        if feature not in data_df.columns:
+            # Common case: feature names like "varname.0" vs "varname": try dropping trailing ".0"
+            alt_feature = feature[:-2] if feature.endswith(".0") else None
+            if alt_feature and alt_feature in data_df.columns:
+                feature = alt_feature
+            else:
+                # Feature not found; return all-False indicator for safety
+                return np.zeros(data_df.shape[0], dtype=bool)
+
+        col = data_df[feature]
+
+        # Determine the comparison value based on column dtype and level token
+        if level in {"True", "False"}:
+            # Prefer boolean when column dtype is boolean; otherwise map to 1/0
+            if pd.api.types.is_bool_dtype(col.dtype):
+                desired_value = (level == "True")
+            else:
+                desired_value = 1 if level == "True" else 0
+        else:
+            # Try numeric conversion when appropriate
+            desired_value = level
+            try:
+                numeric_level = float(level)
+                if pd.api.types.is_integer_dtype(col.dtype):
+                    desired_value = int(numeric_level)
+                elif pd.api.types.is_numeric_dtype(col.dtype):
+                    desired_value = numeric_level
+                else:
+                    # Keep as string for non-numeric columns
+                    desired_value = level
+            except ValueError:
+                # Non-numeric string; keep as-is
+                desired_value = level
+
+        mask = mask & (col == desired_value)
+
+    return mask.to_numpy()

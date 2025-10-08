@@ -4,6 +4,7 @@ import copy
 import random
 
 from sklearn.base import is_regressor
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RandomizedSearchCV, cross_val_predict
 
 from causalml.inference.meta import (BaseSClassifier, BaseRClassifier, 
@@ -56,8 +57,20 @@ class CATEEstimatorResults:
         random.seed(405)
         
         # Different metalearners have different signatures for their fit method
+        # Prefer propensity scores from an explicit model if provided
         if isinstance(CATE_estimator, (XLearnerWrapper, RLearnerWrapper)):
-            p = np.mean(t_train) * np.ones_like(t_train)
+            if hasattr(CATE_estimator, "propensity_learner") and \
+               CATE_estimator.propensity_learner is not None:
+                pl = copy.deepcopy(CATE_estimator.propensity_learner)
+                pl.fit(X_train, t_train)
+                if hasattr(pl, "predict_proba"):
+                    p = pl.predict_proba(X_train)[:, 1]
+                else:
+                    # Fallback: decision_function -> sigmoid as rough prob
+                    scores = pl.decision_function(X_train)
+                    p = 1 / (1 + np.exp(-scores))
+            else:
+                p = np.mean(t_train) * np.ones_like(t_train)
             self.meta_learner.fit(X_train, t_train, y_train, p)
         else:
             self.meta_learner.fit(X_train, t_train, y_train)
@@ -71,7 +84,18 @@ class CATEEstimatorResults:
         T = CATE_estimator.t
         # Different metalearners have different signatures for their predict method
         if isinstance(CATE_estimator, XLearnerWrapper):
-            self.tau = self.meta_learner.predict(X, p = np.mean(T) * np.ones(X.shape[0])).squeeze()
+            if hasattr(CATE_estimator, "propensity_learner") and \
+               CATE_estimator.propensity_learner is not None:
+                pl_all = copy.deepcopy(CATE_estimator.propensity_learner)
+                pl_all.fit(X, T)
+                if hasattr(pl_all, "predict_proba"):
+                    p_all = pl_all.predict_proba(X)[:, 1]
+                else:
+                    scores = pl_all.decision_function(X)
+                    p_all = 1 / (1 + np.exp(-scores))
+            else:
+                p_all = np.mean(T) * np.ones(X.shape[0])
+            self.tau = self.meta_learner.predict(X, p = p_all).squeeze()
         else:
             self.tau = self.meta_learner.predict(X).squeeze()
             
@@ -114,16 +138,25 @@ class CATEEstimatorResults:
         assert 0 <= q_bot and q_bot < q_top and q_top <= 1
         assert kind in ["val", "train", "all"]
         
-        # Compute top and bottom quantile cutoffs
-        quantile_bot = np.quantile(self.tau_train, q_bot)
-        quantile_top = np.quantile(self.tau_train, q_top)
-        
-        # Get subgroup indicator for entire training-validation set
+        # Compute top and bottom quantile cutoffs with random tie-breaking
+        # Add tiny random jitter to break ties reproducibly, then compute quantiles
+        # on jittered training taus
+        rng = np.random.RandomState(42)
+        tau_all = self.tau
+        tau_range = np.max(tau_all) - np.min(tau_all)
+        jitter_scale = 1e-12 * (tau_range if tau_range > 0 else 1.0)
+        jitter = rng.uniform(-1.0, 1.0, size=tau_all.shape[0]) * jitter_scale
+        tau_all_j = tau_all + jitter
+        tau_train_j = tau_all_j[self.train_indices]
+
+        quantile_bot = np.quantile(tau_train_j, q_bot)
+        quantile_top = np.quantile(tau_train_j, q_top)
+
+        # Get subgroup indicator for entire training-validation set using jittered taus
         if q_bot == 0:
-            subgroup_indicator = (self.tau <= quantile_top)
+            subgroup_indicator = (tau_all_j <= quantile_top)
         else:
-            subgroup_indicator = (quantile_bot < self.tau) & \
-                                        (self.tau <= quantile_top)
+            subgroup_indicator = (quantile_bot < tau_all_j) & (tau_all_j <= quantile_top)
         
         # Get subgroup indices of the desired kind
         n_samples = len(subgroup_indicator)
@@ -172,7 +205,7 @@ class BaseCATEEstimatorWrapper:
        Vector of observed responses for entire training-validation set.
     cv: A StratifiedKFold object used to split the data.
     """
-    def __init__(self, X, t, y, cv):
+    def __init__(self, X, t, y, cv, propensity_learner: LogisticRegression | None = None):
 
         self.X = X
         self.t = t
@@ -182,6 +215,8 @@ class BaseCATEEstimatorWrapper:
         self.results = {}
         self.meta_learner = None
         self.fitted = False
+        # Optional propensity model used by X- and R-learners
+        self.propensity_learner = propensity_learner
 
     def tune_params(self, n_iter, verbose = 0):
         """
@@ -479,9 +514,10 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
     def __init__(self, X, t, y, cv, outcome_learner, effect_learner, 
                  outcome_param_grid = {}, effect_param_grid = {},
                  params_treat = {}, params_control = {},
-                 params_treat_effect = {}, params_control_effect = {}):
+                 params_treat_effect = {}, params_control_effect = {},
+                 propensity_learner: LogisticRegression | None = None):
         
-        super().__init__(X, t, y, cv)
+        super().__init__(X, t, y, cv, propensity_learner=propensity_learner)
         self.treatment_outcome_learner = copy.deepcopy(outcome_learner) \
                                             .set_params(**params_treat)
         self.control_outcome_learner = copy.deepcopy(outcome_learner) \
@@ -653,9 +689,10 @@ class RLearnerWrapper(BaseCATEEstimatorWrapper):
     
     def __init__(self, X, t, y, cv, outcome_learner, effect_learner, 
                  outcome_param_grid = {}, effect_param_grid = {}, 
-                 params_outcome = {}, params_effect = {}):
+                 params_outcome = {}, params_effect = {},
+                 propensity_learner: LogisticRegression | None = None):
         
-        super().__init__(X, t, y, cv)
+        super().__init__(X, t, y, cv, propensity_learner=propensity_learner)
         self.outcome_learner = copy.deepcopy(outcome_learner) \
                                     .set_params(**params_outcome)
         self.outcome_param_grid = outcome_param_grid
