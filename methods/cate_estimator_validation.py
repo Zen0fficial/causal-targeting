@@ -22,6 +22,20 @@ from methods.cate_estimator_wrappers import (SLearnerWrapper, TLearnerWrapper,
 ##### 1. Functions for tuning and fitting the estimators #####
 #============================================================#
 
+def _get_cv_for_base(n_splits: int) -> StratifiedKFold:
+    """
+    Canonical CV split used for both tuning (02) and fitting (03):
+    StratifiedKFold with shuffle=True and random_state=405.
+    """
+    return StratifiedKFold(n_splits = n_splits, shuffle = True, random_state = 405)
+
+def _get_cv_for_perturbation(idx: int, n_splits: int) -> StratifiedKFold:
+    """
+    CV split used for CV-perturbations. Uses seeds consistent across 02 and 03
+    so that tuned params per split align with subsequent fitting.
+    """
+    return StratifiedKFold(n_splits = n_splits, shuffle = True, random_state = 7*idx)
+
 def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
                            tuned_params = None, n_iter = 200, verbose = 0,
                            propensity_learner: LogisticRegression | None = None):
@@ -218,13 +232,23 @@ def fit_estimator_libraries(DATA_PATH, original_features, outcome_name,
     
     FILE_PATH = os.path.join(DATA_PATH, outcome_name, "trainval_data.csv")
     fitted_libraries = {} # Dictionary of dictionaries of methods
+
+    # Allow tuned_params to be provided per CV split. Accept either a single
+    # dict of hyperparameters (backward compatible) or a mapping like:
+    # {"pert_none": {...}, "pert_cv_0": {...}, "pert_cv_1": {...}}
+    if isinstance(tuned_params, dict) and \
+       any(k.startswith("pert_") for k in tuned_params.keys()):
+        tuned_params_map = cast(Dict[str, Dict[str, Any]], tuned_params)
+    else:
+        tuned_params_map = {"pert_none": cast(Dict[str, Any], tuned_params)}
         
     # Fit estimators on unperturbed data
     trainval_df = prepare_df(FILE_PATH, original_features, outcome_name)
     X, t, y = separate_vars(trainval_df, outcome_name)
-    cv = StratifiedKFold(n_splits = n_splits, shuffle = True, random_state = 405)
+    cv = _get_cv_for_base(n_splits)
+    tuned_for_none = tuned_params_map.get("pert_none", tuned_params_map.get("base", None))
     fitted_libraries["pert_none"] = make_estimator_library(X, t, y, cv, 
-                             base_learners, tuned_params = tuned_params)
+                             base_learners, tuned_params = tuned_for_none)
     for estimator in tqdm(fitted_libraries["pert_none"].values()):
         np.random.seed(123123)
         estimator.fit()
@@ -232,11 +256,11 @@ def fit_estimator_libraries(DATA_PATH, original_features, outcome_name,
     if perturbed:
         # 1. Fit methods with different CV splits
         for i in range(num_cv_splits):
-            cv_new = StratifiedKFold(n_splits = n_splits, 
-                                   shuffle = True, random_state = 7*i)
+            cv_new = _get_cv_for_perturbation(i, n_splits)
+            tuned_for_split = tuned_params_map.get(f"pert_cv_{i}", tuned_for_none)
             fitted_libraries["pert_cv_" + str(i)] = \
                 make_estimator_library(X, t, y, cv_new, base_learners,
-                                       tuned_params = tuned_params)
+                                       tuned_params = tuned_for_split)
             for estimator in tqdm(fitted_libraries["pert_cv_" + str(i)].values()):
                 np.random.seed(123123)
                 estimator.fit()
