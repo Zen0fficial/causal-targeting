@@ -51,9 +51,6 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
         Number of iterations for RandomizedSearchCV used to tune parameters
     verbose: int
         verbose argument for RandomizedSearchCV
-    propensity_learner: sklearn classifier or None
-        Optional propensity model to supply to X- and R-learners. If None,
-        a sensible LogisticRegression will be constructed.
     
     Returns
     -------
@@ -110,15 +107,16 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
         # outcome learner choices.
         if effect_learner not in base_learners or effect_learner not in param_grids:
             continue
-        x_learners["x_" + name] = XLearnerWrapper(X, t, y, cv, 
-                                     outcome_learner = base_learner, 
-                                     effect_learner = base_learners[effect_learner], 
-                                     params_treat = t_learners["t_" + name] \
+        x_learners["x_" + name] = XLearnerWrapper(
+                                     X, t, y, cv,
+                                     outcome_learner=base_learner,
+                                     effect_learner=base_learners[effect_learner],
+                                     params_treat=t_learners["t_" + name]
                                             .treatment_outcome_learner.get_params(),
-                                     params_control = t_learners["t_" + name] \
+                                     params_control=t_learners["t_" + name]
                                             .control_outcome_learner.get_params(),
-                                     effect_param_grid = param_grids[effect_learner],
-                                     propensity_learner = propensity_learner)
+                                     effect_param_grid=param_grids[effect_learner],
+                                    )
         if tune:
             print("Tuning " + "x_" + name)
             x_learners["x_" + name].tune_params(n_iter)
@@ -131,12 +129,13 @@ def make_estimator_library(X, t, y, cv, base_learners, param_grids = None,
                and (is_binary_outcome or is_regressor(base_learners[n]))]
     for name_1 in r_names:
         for name_2 in r_names:
-            r_learners_all["r_" + name_1 + name_2] = RLearnerWrapper(X, t, y, cv,
-                                        outcome_learner = base_learners[name_1], 
-                                        effect_learner = base_learners[name_2],
-                                        outcome_param_grid = param_grids[name_1],
-                                        effect_param_grid = param_grids[name_2],
-                                        propensity_learner = propensity_learner)
+            r_learners_all["r_" + name_1 + name_2] = RLearnerWrapper(
+                                        X, t, y, cv,
+                                        outcome_learner=base_learners[name_1],
+                                        effect_learner=base_learners[name_2],
+                                        outcome_param_grid=param_grids[name_1],
+                                        effect_param_grid=param_grids[name_2],
+                                    )
     r_learners = {}
     # Keep a representative subset including RF where available
     r_learner_names = [n for n in [
@@ -777,8 +776,9 @@ def get_monotonicity_results(fitted_libraries, top_estimator_names = None,
     """
 
     aggregated_monotonicity_df = pd.DataFrame({})
-    libraries = [fitted_libraries["pert_none"], fitted_libraries["pert_cv_0"],
-                 fitted_libraries["pert_cv_1"]]
+    # libraries = [fitted_libraries["pert_none"], fitted_libraries["pert_cv_0"],
+    #              fitted_libraries["pert_cv_1"]]
+    libraries = [fitted_libraries["pert_none"]]
     for name in libraries[0].keys():
         if name not in dropped_estimators:
             estimator_monotonicity_dfs = []
