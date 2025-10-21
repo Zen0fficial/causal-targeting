@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import copy
 import random
+from typing import Optional, Dict
 
 from sklearn.base import is_regressor
 from sklearn.model_selection import RandomizedSearchCV, cross_val_predict
@@ -11,6 +12,10 @@ from causalml.inference.meta import (BaseSClassifier, BaseRClassifier,
                                      BaseSRegressor, BaseRRegressor, 
                                      BaseTRegressor, BaseXRegressor)
 from causalml.inference.tree import CausalRandomForestRegressor, CausalTreeRegressor
+try:
+    from src.feature_selection import TransparentFeatureSelector
+except Exception:
+    TransparentFeatureSelector = None  # optional dependency; selection used only if available
 
 class CATEEstimatorResults:
     """
@@ -50,6 +55,36 @@ class CATEEstimatorResults:
         X_train = CATE_estimator.X[self.train_indices]
         y_train = CATE_estimator.y[self.train_indices]
         t_train = CATE_estimator.t[self.train_indices]
+
+        # Optional: feature selection fitted on training fold only
+        self._selector = None
+        if getattr(CATE_estimator, "feature_selection_config", None) is not None and TransparentFeatureSelector is not None:
+            cfg: Dict = CATE_estimator.feature_selection_config or {}
+            strategy = cfg.get("strategy", "filters+correlation+univariate")
+            params = cfg.get("params", {})
+            report_path = cfg.get("report_path", None)
+            random_state = int(cfg.get("random_state", 0))
+            self._selector = TransparentFeatureSelector(
+                strategy=strategy,
+                params=params,
+                report_path=report_path,
+                random_state=random_state,
+            )
+            # Wrap arrays in DataFrame with deterministic column names
+            n_features = X_train.shape[1]
+            columns = [f"x_{i}" for i in range(n_features)]
+            X_train_df = pd.DataFrame(X_train, columns=columns)
+            try:
+                self._selector.fit(X_train_df, y_train, t_train)
+                X_train_sel = self._selector.transform(X_train_df).values
+                # Fallback if selection led to zero columns
+                if X_train_sel.shape[1] > 0:
+                    X_train = X_train_sel
+                else:
+                    self._selector = None
+            except Exception:
+                # Any failure disables selection for this fold to keep training robust
+                self._selector = None
         
         # Set random seed for reproducible results.
         np.random.seed(405)
@@ -69,6 +104,15 @@ class CATEEstimatorResults:
         """
         X = CATE_estimator.X
         T = CATE_estimator.t
+        # Apply trained selector, if any
+        if getattr(self, "_selector", None) is not None:
+            n_features = X.shape[1]
+            columns = [f"x_{i}" for i in range(n_features)]
+            X_full_df = pd.DataFrame(X, columns=columns)
+            try:
+                X = self._selector.transform(X_full_df).values
+            except Exception:
+                pass
         # Different metalearners have different signatures for their predict method
         if isinstance(CATE_estimator, XLearnerWrapper):
             self.tau = self.meta_learner.predict(X, p = np.mean(T) * np.ones(X.shape[0])).squeeze()
@@ -182,6 +226,21 @@ class BaseCATEEstimatorWrapper:
         self.results = {}
         self.meta_learner = None
         self.fitted = False
+        # Optional feature selection; set via set_feature_selection_config()
+        self.feature_selection_config: Optional[Dict] = None
+
+    def set_feature_selection_config(self, config: Optional[Dict]):
+        """
+        Set or clear optional feature selection configuration.
+
+        Example:
+            wrapper.set_feature_selection_config({
+                "strategy": "filters+correlation+univariate+double_selection+stability",
+                "params": {"max_missing": 0.3, "corr_threshold": 0.95},
+                "random_state": 0,
+            })
+        """
+        self.feature_selection_config = config
 
     def tune_params(self, n_iter, verbose = 0):
         """
@@ -298,7 +357,7 @@ class SLearnerWrapper(BaseCATEEstimatorWrapper):
         Xt = np.hstack((self.X, self.t.reshape(-1,1)))
         rand_search = RandomizedSearchCV(self.base_learner, self.param_grid,
                                          cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                         n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
+                                         n_iter = n_iter, scoring = self.scoring, n_jobs = 8,
                                          verbose = verbose)
         rand_search.fit(Xt, self.y)
         self.base_learner = rand_search.best_estimator_
@@ -398,7 +457,7 @@ class TLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_treat = RandomizedSearchCV(self.treatment_outcome_learner, 
                                                self.param_grid, 
                                                cv = self.cv.split(X_treat, y_treat), 
-                                               n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
+                                               n_iter = n_iter, scoring = self.scoring, n_jobs = 8,
                                                verbose = verbose)
         rand_search_treat.fit(X_treat, y_treat)
         self.treatment_outcome_learner = rand_search_treat.best_estimator_
@@ -406,7 +465,7 @@ class TLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_control = RandomizedSearchCV(self.control_outcome_learner, 
                                                  self.param_grid,
                                                  cv = self.cv.split(X_control, y_control), 
-                                                 n_iter = n_iter, scoring = self.scoring, n_jobs = -1,
+                                                 n_iter = n_iter, scoring = self.scoring, n_jobs = 8,
                                                  verbose = verbose)
         rand_search_control.fit(X_control, y_control)
         self.control_outcome_learner = rand_search_control.best_estimator_
@@ -545,7 +604,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                    cv = self.cv.split(X_treat, 
                                                                       y_treat),
                                                    n_iter = n_iter, 
-                                                   scoring = self.scoring, n_jobs = -1,
+                                                   scoring = self.scoring, n_jobs = 8,
                                                    verbose = verbose)
             rand_search_treat.fit(X_treat, y_treat)
             self.treatment_outcome_learner = rand_search_treat.best_estimator_
@@ -555,7 +614,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                      cv = self.cv.split(X_control, 
                                                                         y_control), 
                                                      n_iter = n_iter, 
-                                                     scoring = self.scoring, n_jobs = -1,
+                                                     scoring = self.scoring, n_jobs = 8,
                                                      verbose = verbose)
             rand_search_control.fit(X_control, y_control)
             self.control_outcome_learner = rand_search_control.best_estimator_
@@ -577,7 +636,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                       self.effect_param_grid, 
                                                       cv = self.cv.split(X_treat, 
                                                                          y_treat), 
-                                                      n_iter = n_iter, n_jobs = -1)
+                                                      n_iter = n_iter, n_jobs = 8)
         rand_search_treat_effect.fit(X_treat, y_treat - y0_treat_)
         self.treatment_effect_learner = rand_search_treat_effect.best_estimator_
         
@@ -585,7 +644,7 @@ class XLearnerWrapper(BaseCATEEstimatorWrapper):
                                                         self.effect_param_grid, 
                                                         cv = self.cv.split(X_control, 
                                                                            y_control), 
-                                                        n_iter = n_iter, n_jobs = -1)
+                                                        n_iter = n_iter, n_jobs = 8)
         rand_search_control_effect.fit(X_control, y1_control_ - y_control)
         self.control_effect_learner = rand_search_control_effect.best_estimator_
         self.effect_learner_scores = (rand_search_treat_effect.best_score_, 
@@ -695,16 +754,16 @@ class RLearnerWrapper(BaseCATEEstimatorWrapper):
         rand_search_outcome = RandomizedSearchCV(self.outcome_learner, 
                                   self.outcome_param_grid, 
                                   cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                  n_iter = n_iter, n_jobs = -1, verbose = verbose)
+                                  n_iter = n_iter, n_jobs = 8, verbose = verbose)
         rand_search_outcome.fit(self.X, self.y)
         self.outcome_learner = rand_search_outcome.best_estimator_
         
         y_hat = cross_val_predict(self.outcome_learner, self.X, self.y, 
-                                  cv = self.cv.split(self.X, self.y + 2*self.t), n_jobs = -1)
+                                  cv = self.cv.split(self.X, self.y + 2*self.t), n_jobs = 8)
         rand_search_effect = RandomizedSearchCV(self.effect_learner, 
                                  self.effect_param_grid, 
                                  cv = self.cv.split(self.X, self.y + 2*self.t), 
-                                 n_iter = n_iter, n_jobs = -1, verbose = verbose)
+                                 n_iter = n_iter, n_jobs = 8, verbose = verbose)
         rand_search_effect.fit(self.X, (self.y - y_hat) / (self.t - np.mean(self.t)))
         self.effect_learner = rand_search_effect.best_estimator_
         self.learner_scores = (rand_search_outcome.best_score_, 
