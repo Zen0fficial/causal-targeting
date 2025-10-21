@@ -46,26 +46,10 @@ def check_inputs(est) -> Dict[str, Tuple[int, int]]:
 
 
 def compute_propensity(est) -> np.ndarray:
-    # Reproduce the wrapper's logic used in _predict_tau
+    # Use mean treatment rate as default propensity (since model-based is removed)
     X = est.X
     T = est.t
-    pl = getattr(est, "propensity_learner", None)
-    if pl is not None:
-        # Fit a fresh copy to avoid mutating the stored one
-        import copy as _copy
-        pl_copy = _copy.deepcopy(pl)
-        pl_copy.fit(X, T)
-        if hasattr(pl_copy, "predict_proba"):
-            p_all = pl_copy.predict_proba(X)[:, 1]
-        elif hasattr(pl_copy, "decision_function"):
-            scores = pl_copy.decision_function(X)
-            p_all = 1.0 / (1.0 + np.exp(-scores))
-        else:
-            # Fallback to mean(T)
-            p_all = np.mean(T) * np.ones(X.shape[0], dtype=float)
-    else:
-        p_all = np.mean(T) * np.ones(X.shape[0], dtype=float)
-    return p_all
+    return np.mean(T) * np.ones(X.shape[0], dtype=float)
 
 
 def summarize_propensity(p: np.ndarray) -> Dict[str, float]:
@@ -93,13 +77,9 @@ def diagnose_xlearner(est) -> Dict[str, object]:
     # 1) Inputs
     diag["input_stats"] = check_inputs(est)
 
-    # 2) Propensity
-    try:
-        p = compute_propensity(est)
-        diag["propensity_summary"] = summarize_propensity(p)
-    except Exception as e:
-        diag["propensity_error"] = str(e)
-        p = None
+    # 2) Propensity (now constant by design)
+    p = compute_propensity(est)
+    diag["propensity_summary"] = summarize_propensity(p)
 
     # 3) NaNs in meta predictions by fold
     fold_nan: List[Tuple[int, int, int]] = []  # (fold, num_nan, total)
@@ -135,8 +115,6 @@ def diagnose_xlearner(est) -> Dict[str, object]:
 
         # 5) Recompute meta prediction explicitly to confirm source
         try:
-            if p is None:
-                p = compute_propensity(est)
             if hasattr(est.meta_learner, "predict"):
                 tau2 = est.meta_learner.predict(X, p=p) if "p" in est.meta_learner.predict.__code__.co_varnames else est.meta_learner.predict(X)
                 tau2 = np.asarray(tau2)
