@@ -79,3 +79,19 @@ TABLE_CONFIG = {
 # Ensure directories exist
 for directory in [ANALYSIS_DATA_DIR, TABLES_DIR, FIGURES_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+# Default configuration for transparent feature selection
+FEATURE_SELECTION_DEFAULT = {
+    "enabled": False,
+    "strategy": "filters+correlation+univariate",
+    "params": {
+        "min_variance": 1e-8,
+        "max_missing": 0.3,
+        "corr_threshold": 0.95,
+        "univariate": {"k": 200, "kind": "mutual_info_regression"},
+        "double_selection": {"alpha": "cv", "max_iter": 2000},
+        "stability": {"n_subsamples": 50, "sample_frac": 0.5, "threshold": 0.6, "max_iter": 2000},
+    },
+    "random_state": 0,
+    "report_path": None,
+}
