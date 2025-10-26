@@ -38,6 +38,5 @@ pytest>=8.0.0
 
 
 # Optional (enable additional estimators/inference)
-econml>=0.16.0
 xgboost>=1.7.0
 
