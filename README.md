@@ -36,8 +36,24 @@ Targeted CATE estimation and interpretable policy learning for Turkey bank overd
 
 ### Run order
 
-1) 02_tune_CATE_estimators.ipynb → 2) 03a_GI_validate_CATE_estimators.ipynb: 1, Set up; 2 Calibration and R2 (predictability) → 3) 04a_GI_rank_CATE_estimators.ipynb → 4) 05a_GI_cell_search.ipynb → 5) 03a_GI_validate_CATE_estimators.ipynb: 3. Monotonicity; 4. Stability of CATE estimators
+1) 02_tune_CATE_estimators.ipynb → 2) 03a_GI_validate_CATE_estimators.ipynb: 1, Set up; 2 Calibration and R2 (predictability) → 3) 04a_GI_rank_CATE_estimators.ipynb → 4) 05a_GI_cell_search.ipynb → 5) 03a_GI_validate_CATE_estimators.ipynb: 3. Monotonicity; 4. Stability of CATE estimators → 6) 05b_GI_rebuild_top_groups.ipynb
 
 Open each in Jupyter and run top-to-bottom after verifying paths in `config/config.py`.
 
+
+## Setup and outputs
+
+- The notebooks now auto-create the standard save locations at startup:
+  - `output/analysis/`
+  - `output/params/`
+  - `output/figures/`
+  - `output/tables/`
+- Artifacts by step:
+  - 02 saves tuned params and imputation/meta to `output/params/<outcome>/` and aligned datasets to `output/analysis/<outcome>/`.
+  - 03a saves per-fold libraries and validation data under `output/analysis/<outcome>/`.
+  - 04a writes comparison tables to `output/tables/` and figures to `output/figures/`.
+  - 05a writes subgroup/policy tables and figures to `output/tables/` and `output/figures/`.
+  - 05b saves subgroup refit libraries to `output/analysis/<outcome>/` and shows final ATE/CI tables inline.
+
+Dependencies: install via `pip install -r requirements.txt`. `xgboost` is used as an optional base learner in 02/03a; if not available, you can comment it out in those notebooks.
 
