@@ -28,6 +28,12 @@ Targeted CATE estimation and interpretable policy learning for Turkey bank overd
   - Key steps: call into `methods/greedy_cell_search.py` and `methods/cell_search.py` to construct cells; evaluate uplift and coverage; export human-readable rules.
   - Outputs: segmentation rules and policy summaries exported to `output/tables/` and `output/figures/`.
 
+- 05b_GI_rebuild_top_groups.ipynb
+  - Objective: Rebuild top subgroups from prior steps and refit on the selected units; compute both Neyman pooled tests and model-based ATE with 95% CIs per estimator on fixed subgroups.
+  - Inputs: artifacts from 02/03a/04a (fitted libraries, top estimator names), train/val and holdout csvs in `output/analysis/<outcome>/`.
+  - Key steps: reconstruct subgroup masks, retune on subgroup, and produce a per-estimator table using each fold’s pre-trained meta-learner (`estimate_ate(pretrain=True)`) for model-based inference; no new subgroup construction.
+  - Outputs: final subgroup stats tables in the notebook output; updated fitted subgroup libraries cached in `output/analysis/<outcome>/*subgroup_fitted_libraries.pkl`.
+
 ### Run order
 
 1) 02_tune_CATE_estimators.ipynb → 2) 03a_GI_validate_CATE_estimators.ipynb: 1, Set up; 2 Calibration and R2 (predictability) → 3) 04a_GI_rank_CATE_estimators.ipynb → 4) 05a_GI_cell_search.ipynb → 5) 03a_GI_validate_CATE_estimators.ipynb: 3. Monotonicity; 4. Stability of CATE estimators
