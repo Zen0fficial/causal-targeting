@@ -301,11 +301,56 @@ class BaseCATEEstimatorWrapper:
         """
         for idx, (train_indices, val_indices) in \
                 enumerate(self.cv.split(self.X, self.y + 2*self.t)):
-            self.results[idx] = CATEEstimatorResults(train_indices, val_indices, self)
+            # Save a fold-specific copy of the trained metalearner so we can
+            # later make predictions on new data (e.g., holdout) for that fold
+            self.results[idx] = CATEEstimatorResults(
+                train_indices, val_indices, self, save_metalearner=True
+            )
         self.fitted = True
         
     def __repr__(self):
         return "Wrapper for " + self.meta_learner.__repr__()
+
+    def predict_on_fold(self, fold: int, X_new):
+        """
+        Predict ITEs on new data using the model fitted on a specific CV fold.
+
+        Parameters
+        ----------
+        fold: int
+            Fold index whose trained model should be used.
+        X_new: array-like of shape (n_samples_new, n_features)
+            New covariates to predict on.
+
+        Returns
+        -------
+        tau_new: ndarray of shape (n_samples_new,)
+            Predicted ITEs for the new data using the fold-specific model.
+        """
+        assert self.fitted, "Call fit() before predict_on_fold()."
+        assert fold in self.results, f"Fold {fold} not available."
+
+        result = self.results[fold]
+        X_trans = X_new
+        # Apply fold-specific selector if present
+        if getattr(result, "_selector", None) is not None:
+            n_features = self.X.shape[1]
+            columns = [f"x_{i}" for i in range(n_features)]
+            try:
+                X_df = pd.DataFrame(X_new, columns=columns)
+                X_trans = result._selector.transform(X_df).values
+            except Exception:
+                # If transform fails for any reason, fall back to raw X_new
+                X_trans = X_new
+
+        # Dispatch for learners with different predict signatures
+        if isinstance(self, XLearnerWrapper):
+            p = np.mean(self.t) * np.ones(X_trans.shape[0])
+            tau = result.meta_learner.predict(X_trans, p=p)
+        else:
+            tau = result.meta_learner.predict(X_trans)
+
+        return np.asarray(tau).squeeze()
 
 class SLearnerWrapper(BaseCATEEstimatorWrapper):
     """
