@@ -242,7 +242,6 @@ def fit_estimator_libraries(DATA_PATH, original_features, outcome_name,
         for i in range(num_cv_splits):
             # Require saved perturbed folds (generated in 02)
             cv_new = StratifiedKFold(n_splits = n_splits, shuffle = True, random_state = 7 * i)
-            tuned_for_split = tuned_params_map.get(f"pert_cv_{i}", tuned_for_none)
             fitted_libraries["pert_cv_" + str(i)] = \
                 make_estimator_library(X, t, y, cv_new, base_learners,
                                        tuned_params = tuned_for_none)
@@ -308,7 +307,7 @@ def fit_estimator_libraries(DATA_PATH, original_features, outcome_name,
 ##### 2. Functions for validating the estimators         #####
 #============================================================#
 
-def get_bin_CATEs(CATE_estimator, fold, n_bins = 5, kind = "val", 
+def get_bin_CATEs(CATE_estimator, fold, n_bins = 5, kind = "val", q_values = None,
                   return_std = False):
     """
     Using predicted ITE quantiles on the training fold as thresholds, put the 
@@ -340,7 +339,8 @@ def get_bin_CATEs(CATE_estimator, fold, n_bins = 5, kind = "val",
     assert fold in {0, 1, 2, 3}
     assert kind in {"val", "train", "all"}
     
-    q_values = np.linspace(0, 1, n_bins+1)
+    if q_values is None:
+        q_values = np.linspace(0, 1, n_bins+1)
     bin_CATEs_ = []
     bin_CATEs_std_ = []
     y = CATE_estimator.y
@@ -685,13 +685,13 @@ def get_estimator_monotonicity_results(CATE_estimator, n_bins = 5,
         func = is_lastbin_largest
         col_name = "last_bin_is_max"
     
-    q_values = np.linspace(0, 1, n_bins+1)
+    q_values = np.linspace(0.5, 1, n_bins+1)
     col_names = [f"[{q_values[i]:.1f},{q_values[i+1]:.1f}] vs \
                  [{q_values[i+1]:.1f}, {q_values[i+2]:.1f}]" 
                  for i in range(n_bins-1)] + [col_name]
     rows = []
     for fold in range(CATE_estimator.n_splits):
-        bin_CATEs = get_bin_CATEs(CATE_estimator, fold, n_bins, "val")
+        bin_CATEs = get_bin_CATEs(CATE_estimator, fold, n_bins, "val", q_values)
         is_increasing = list(check_if_sequence_increasing(bin_CATEs))
         is_increasing.append(func(bin_CATEs))
         rows.append(is_increasing)
