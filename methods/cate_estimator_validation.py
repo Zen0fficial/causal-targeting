@@ -307,8 +307,8 @@ def fit_estimator_libraries(DATA_PATH, original_features, outcome_name,
 ##### 2. Functions for validating the estimators         #####
 #============================================================#
 
-def get_bin_CATEs(CATE_estimator, fold, n_bins = 5, kind = "val", q_values = None,
-                  return_std = False):
+def get_bin_CATEs(CATE_estimator, fold, n_bins = 5, kind = "val",
+                  return_std = False, q_values = None):
     """
     Using predicted ITE quantiles on the training fold as thresholds, put the 
     individuals into n_bins of roughly equal size. Compute the Neyman estimate 
@@ -691,7 +691,7 @@ def get_estimator_monotonicity_results(CATE_estimator, n_bins = 5,
                  for i in range(n_bins-1)] + [col_name]
     rows = []
     for fold in range(CATE_estimator.n_splits):
-        bin_CATEs = get_bin_CATEs(CATE_estimator, fold, n_bins, "val", q_values)
+        bin_CATEs = get_bin_CATEs(CATE_estimator, fold, n_bins, "val", q_values=q_values)
         is_increasing = list(check_if_sequence_increasing(bin_CATEs))
         is_increasing.append(func(bin_CATEs))
         rows.append(is_increasing)
