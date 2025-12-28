@@ -1,0 +1,168 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage[authoryear]{natbib}
+\usepackage{multirow}
+\usepackage{sectsty}
+\usepackage{titling}
+\usepackage{graphicx}
+\usepackage{longtable}
+
+% Academic Journal Formatting: Stripping bold from all headers
+\allsectionsfont{\normalfont\large}
+\subsectionfont{\normalfont\normalsize}
+\pretitle{\begin{center}\huge\textnormal}
+\posttitle{\par\end{center}\vskip 0.5em}
+\preauthor{\begin{center}\large\textnormal}
+\postauthor{\par\end{center}}
+\predate{\begin{center}\large\textnormal}
+\postdate{\par\end{center}}
+
+
+\geometry{margin=1in}
+
+\title{The Stability of Truth in Behavioral Finance: \\ A StaDISC Re-Analysis of the Sule Alan Overdraft Experiment}
+\author{Technical Analysis Report}
+\date{December 23, 2025}
+
+\begin{document}
+	
+	\maketitle
+	
+	\section*{Abstract}
+	This report presents a rigorous re-evaluation of the field experiment data from Alan et al. (2018) concerning bank overdraft behavior. While the original study identifies average treatment effects stemming from the unshrouding of financial costs, the replicability of identified heterogeneous treatment effects (HTE) for causal targeting remains a significant hurdle. We apply the Stable Discovery of Interpretable Subgroups via Calibration (StaDISC) methodology to evaluate the robustness of targeting signals across the experimental arms. Utilizing the Predictability, Computability, and Stability (PCS) framework, we contrast the stability-maximization approach of StaDISC with the utility-maximization approach of causal targeting. Our analysis aims to disentangle stable behavioral signals from stochastic noise, specifically examining the interaction between overdraft unshrouding, automatic bill payment commitments, and debit card usage frequency.
+	
+	\section{The Epistemological Crisis in Financial Nudging and the Imperative for Veridical Data Science}
+	The contemporary landscape of behavioral economics and financial regulation is currently navigating a period of profound introspection, often characterized as the ``replication crisis'' or the ``credibility revolution.'' For decades, the field has relied on the premise that subtle interventions---``nudges''---can significantly alter consumer behavior, correcting market failures driven by cognitive biases without necessitating heavy-handed regulatory mandates. However, as datasets grow in volume and algorithmic complexity increases, a disquieting divergence has emerged between the promise of personalized financial interventions and the reliability of the statistical evidence supporting them. It is within this contested space that the re-analysis of the seminal study ``Unshrouding: Evidence from Bank Overdrafts in Turkey'' by \citet{alan2018} becomes not merely an academic exercise, but a critical stress test for the future of evidence-based policy.
+	
+	This report establishes a comprehensive framework for applying the \textbf{StaDISC} (Stable Discovery of Interpretable Subgroups via Calibration) methodology to the Alan et al. dataset. Developed by \citet{dwivedi2020} under the rubric of the \textbf{PCS Framework} (Predictability, Computability, and Stability), StaDISC offers a pathway out of the fragility inherent in traditional causal inference. By prioritizing stability alongside predictive accuracy, this approach aims to distinguish robust behavioral signals from the stochastic noise that often plagues field experiments in consumer finance. The ultimate objective is to move beyond the aggregate metrics of Average Treatment Effects (ATE), which obscure critical heterogeneity, and instead identify stable, interpretable subgroups of banking customers who genuinely respond to ``unshrouding'' messages regarding overdraft fees.
+	
+	The stakes of this re-analysis are elevated by the specific mechanics of the original experiment. \citet{alan2018} presented a counter-intuitive finding: explicit marketing messages offering a 50\% discount on overdraft interest rates paradoxically \emph{reduced} demand for overdrafts. The proposed mechanism was ``unshrouding''---the idea that the promotion made the existence and high cost of the overdraft salient to consumers who had previously ignored it, prompting them to avoid the service entirely. However, the universality of this effect is questionable. Did the ``unshrouding'' work equally well for sophisticated users leveraging automatic bill pay as it did for myopic users relying on debit cards for impulse purchases? Or are there distinct subgroups for whom the intervention backfired?
+	
+	To answer these questions, this report integrates insights from the emerging literature on ``Causal Targeting'' by \citet{athey2023}, contrasting their utility-maximization approach with the stability-maximization approach of the Yu group. The resulting synthesis offers a blueprint for ``Veridical Data Science'' in banking—a rigorous standard of evidence that demands findings be predictable, computable, and, above all, stable before they inform regulatory safe harbors or corporate strategy.
+	
+	\subsection{The Theoretical Underpinnings: Shrouding and Salience}
+	To understand the necessity of a high-dimensional re-analysis, one must first dissect the economic theory that motivated the original Alan et al. study. The concept of ``shrouded attributes,'' formalized by \citet{gabaix2006}, posits a market equilibrium where firms deliberately hide high-cost add-on information (like overdraft fees or hotel resort fees) because unshrouding them would not steal customers from competitors but rather educate them to avoid the high-margin add-ons altogether. In this model, the market is segmented into ``sophisticates,'' who know the game and avoid the fees, and ``myopes,'' who pay the fees and subsidize the low base prices for everyone else.
+	
+	The Alan et al. experiment was a rare field test of this theory. Working with Yapi Kredi, a large Turkish bank, the researchers sent SMS promotions to 108,000 existing checking account holders. The experimental design was intricate, involving not just overdraft discounts but also cross-promotions for other services, creating a web of potential behavioral interactions.
+	
+	\begin{table}[H]
+		\centering
+		\caption{Theoretical Mechanisms of Shrouding vs. Neoclassical Pricing}
+		\label{tab:mechanisms}
+		\begin{tabular}{p{3cm} p{3.5cm} p{4cm} p{4cm}}
+			\toprule
+			\textbf{Economic Theory} & \textbf{Prediction for Discount} & \textbf{Mechanism} & \textbf{Expected Outcome} \\ 
+			\midrule
+			\textbf{Neoclassical} & Increased Demand & Price Elasticity: Lower prices ($P \downarrow$) lead to higher quantity demanded ($Q \uparrow$). & Users receiving the 50\% discount should increase overdraft usage. \\ \addlinespace
+			\textbf{Shrouded Attributes} & Decreased Demand & Salience/Unshrouding: The promotion acts as a reminder of the existence and cost of the add-on. & Users receiving the discount reduce usage due to heightened attention to costs. \\ \addlinespace
+			\textbf{Commitment Theory} & Heterogeneous Response & Binding: Services like Auto-Bill Pay act as commitment devices. & Users with Auto-Bill Pay might be immune to the salience shock due to automation. \\ \addlinespace
+			\textbf{Mental Accounting} & Impulse Reduction & Categorization: Debit card users treat funds as ``free cash.'' Unshrouding forces re-categorization. & High-frequency debit users might show the strongest reduction. \\ 
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	
+	The study's finding---that the discount reduced usage by approximately 2\%---supports the Shrouded Attributes model. However, the ``2\%'' figure is an average. It likely hides a bimodal distribution where some users (perhaps those with high liquidity but low attention) reduced usage drastically, while others (those with structural liquidity constraints) did not change behavior at all because they \emph{could not} avoid the overdraft, regardless of the price or information. StaDISC provides the toolset to deconstruct this average.
+	
+	\subsection{The Convergence of Machine Learning and Causal Inference}
+	The application of machine learning to causal inference represents a fundamental shift in how economists analyze field experiments. Traditional econometric methods, such as logistic regression or Cox proportional hazards models, rely on rigid parametric assumptions (e.g., linearity, additivity) that facilitate the estimation of ATEs but struggle to capture complex, high-dimensional interactions. If the ``unshrouding'' effect depends on a non-linear interaction between a customer's credit score, their history of mobile banking login frequency, and their tenure with the bank, a standard linear regression will fail to identify it.
+	
+	Machine learning models, particularly ensemble methods like Random Forests and Gradient Boosting Machines, excel at uncovering these non-linearities. However, they introduce a new risk: overfitting and instability. A complex model might identify a ``subgroup'' of users---say, ``men aged 34-36 living in Istanbul with a debit card''---who react strongly to the treatment in the training data, but this finding might be pure noise that evaporates in a validation set. This is the core problem that the PCS framework addresses. It demands that we do not just fit a model, but that we stress-test it to ensure the discovered subgroups are real and replicable entities, not statistical phantoms.
+	
+	\section{The Architecture of the Original Experiment and the Data Landscape}
+	A robust re-analysis requires a granular understanding of the original experimental design. The Alan et al. (2018) study is particularly suitable for StaDISC because of its large sample size ($N=108,000$) and its multi-arm treatment structure, which creates the necessary variation to explore heterogeneous effects.
+	
+	\subsection{Treatment Arms and Bundling Dynamics}
+	The experiment did not merely test a binary ``treatment vs. control.'' It utilized a factorial design that interacted the overdraft discount with promotions for other banking services. This was designed to test the ``salience mechanism'' specifically: does reminding a user about their debit card (which causes overdrafts) at the same time as the overdraft price change behavior differently than the price message alone?
+	
+	The treatment arms can be categorized into three main groups. The Core Overdraft Arm received an SMS offering a 50\% discount on the overdraft interest rate. The Cross-Sell Arms extended this basic treatment with additional promotions: the Auto-Debit (ABP) Bundle received the overdraft discount message plus a promotion for setting up automatic bill payment, while the Debit Card Bundle received the overdraft discount message plus a promotion for using their debit card. Finally, the Intensity Arms varied the frequency of contact, with some groups receiving the message only once while others received it repeatedly, thereby testing the persistence of salience.
+	
+	The interaction effects here are crucial for the StaDISC analysis. Automatic bill payment (ABP) is often viewed in behavioral economics as a ``commitment device'' \citep{bryan2010}. By automating the payment, the user removes the need for memory and willpower. However, Alan et al. hypothesized that ABP might also induce ``passive'' overdrafts if the user stops monitoring their balance. Therefore, the ``unshrouding'' message might have a radically different effect on an ABP user (who needs to be jolted out of passivity) compared to a manual payer (who is already engaging with the payment system).
+	
+	Similarly, debit card usage is linked to ``impulse spending'' and stochastic balance fluctuations \citep{prelec1998}. A user with high debit frequency is engaged in high-variance financial behavior. The heterogeneity hypothesis to be tested is whether the ``unshrouding'' effect is concentrated among high-frequency debit users (who have the most to lose from accidental overdrafts) or whether it is effective across the board.
+	
+	\subsection{The Data Environment and Covariates}
+	The richness of the dataset allows for the construction of a high-dimensional feature space for the StaDISC algorithm. The feature set likely includes demographic characteristics such as age, gender, and location (urban or rural), as well as account history variables including tenure with the bank, average monthly balance, and balance variance. Service usage patterns are also captured through flags for Auto-Bill Pay enrollment, frequency of debit card transactions, frequency of ATM withdrawals, and mobile app usage frequency. Finally, creditworthiness indicators such as internal credit scores and history of past delinquency complete the feature space.
+	
+	The distinction between ``structural'' and ``stochastic'' behavior is a key theme in banking literature. Structural behavior refers to users who overdraft because their income is consistently lower than their expenses (insolvency), while stochastic behavior refers to users who overdraft due to timing mismatches. StaDISC is uniquely positioned to validate this theoretical distinction by empirically identifying if ``Balance Variance'' or ``Income-to-Expense Ratio'' are the defining features of the stable subgroups that respond to the treatment.
+	
+	\section{The StaDISC Framework: Methodology and Mechanics}
+	The primary methodological contribution of this re-analysis is the application of \textbf{StaDISC}, a novel framework introduced by \citet{dwivedi2020} during their re-analysis of the VIGOR study.
+	
+	\subsection{The Failure of Global CATE Estimators}
+	In causal inference, researchers often attempt to estimate the Conditional Average Treatment Effect (CATE), denoted as $\tau(x) = E$. Popular methods for estimating $\tau(x)$ include Causal Forests and Meta-Learners. However, the VIGOR study re-analysis revealed that while these models are sophisticated, they often fail to generalize to new data, exhibiting poor \textbf{global calibration}.
+	
+	This instability is visualized using \textbf{Calibration Box Plots}. In these plots, the x-axis represents the predicted treatment effect while the y-axis represents the observed treatment effect in a held-out validation set. A tall box indicates high variance and instability in the predictions, whereas proper alignment of boxes with the 45-degree diagonal line signifies a well-calibrated model.
+	
+	\subsection{The StaDISC Workflow: A Three-Stage Process}
+	StaDISC operates in three stages to find local pockets of stability:
+	
+	\textbf{Stage 1: Predictive Reality Check via Calibration.} The process begins by splitting the data into training, validation, and test folds. Multiple CATE estimators are trained, and the algorithm computes a novel metric, the \textbf{Calibration-based Pseudo-$R^2$ ($R^2_C$)}, which quantifies how well the predicted heterogeneity matches the observed heterogeneity in the validation set.
+	
+	\textbf{Stage 2: Stability-Driven Ranking and Aggregation.} Recognizing that no single model is perfect, StaDISC ranks the estimators based on their stability ($R^2_C$) across multiple data splits. It aggregates the top-performing, stable estimators to form a robust meta-prediction.
+	
+	\textbf{Stage 3: CellSearch for Interpretable Subgroups.} Once a stable signal is isolated, StaDISC uses a procedure called \textbf{CellSearch} to define the subgroup in human-readable terms, looking for combinations of features that maximize the treatment effect while maintaining stability.
+	
+	\begin{table}[H]
+		\centering
+		\caption{The PCS Workflow Applied to Banking Data}
+		\label{tab:pcs_workflow}
+		\begin{tabular}{p{3cm} p{4cm} p{7cm}}
+			\toprule
+			\textbf{PCS Principle} & \textbf{StaDISC Step} & \textbf{Implementation in Re-Analysis} \\ 
+			\midrule
+			\textbf{Predictability (P)} & Calibration Reality Check & Use held-out validation folds to verify if users predicted to ``unshroud'' actually reduce overdrafts. Reject models with low $R^2_C$. \\ \addlinespace
+			\textbf{Computability (C)} & Algorithm Selection & Employ scalable implementations of Causal Forests and X-Learners (e.g., `grf` or `econml`) to handle $N=108,000$. \\ \addlinespace
+			\textbf{Stability (S)} & Ranking \& Aggregation & Perturb the data (different cross-validation splits) and the model (different base learners). Only report subgroups that appear consistently. \\ 
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	
+	\section{Comparative Frameworks: Causal Targeting vs. Stability Discovery}
+	To fully contextualize the StaDISC approach, it is essential to contrast it with the parallel developments in ``Causal Targeting'' spearheaded by \citet{athey2023}. While both methodologies utilize machine learning to analyze heterogeneity, their philosophical objectives differ.
+	
+	\subsection{Athey's Framework: Optimizing Allocation}
+	Athey et al. focus on \textbf{targeting efficiency}---given a limited budget, who should receive the nudge to maximize the total benefit? They distinguish between two approaches: predictive targeting, which selects individuals based on baseline risk (e.g., those least likely to renew financial aid), and causal targeting, which selects individuals with the highest estimated treatment effect (CATE). Their breakthrough was determining that hybrid approaches---specifically, targeting based on ``intermediate'' baseline risk---often yield the best results due to the high variance in pure CATE estimates.
+	
+	\subsection{StaDISC vs. Athey: Utility vs. Veridicality}
+	The divergence lies in the distinction between \emph{utility maximization} (Athey) and \emph{scientific veridicality} (StaDISC). Athey's metric, the Gain Index, measures the cumulative benefit of a targeting policy and answers the question: ``How much more benefit do I get compared to random targeting?'' This is fundamentally an ROI metric. In contrast, StaDISC's metric, based on calibration and stability, answers a different question: ``Can I trust that the subgroup identified actually exists?'' It optimizes for the reliability of the scientific claim rather than immediate utility.
+	
+	In the context of the Turkish overdraft experiment, a regulator would prefer StaDISC to identify stable, definable groups of vulnerable consumers, whereas a bank executive might prefer Athey's approach to maximize marketing ROI.
+	
+	\begin{table}[H]
+		\centering
+		\caption{Comparative Analysis of Methodologies}
+		\label{tab:comparison}
+		\begin{tabular}{p{3.5cm} p{5.5cm} p{5.5cm}}
+			\toprule
+			\textbf{Feature} & \textbf{Athey et al. (Causal Targeting)} & \textbf{StaDISC (PCS Framework)} \\ 
+			\midrule
+			\textbf{Primary Objective} & Maximize Aggregate Utility/Uplift (ROI) & Establish Scientific Stability \& Interpretability \\ \addlinespace
+			\textbf{Key Metric} & Gain Index / Qini Coefficient & Calibration-based Pseudo-$R^2$ \\ \addlinespace
+			\textbf{Handling Noise} & Hybrid Models (Baseline + Causal) & Stability Ranking \& Aggregation \\ \addlinespace
+			\textbf{Output} & An allocation policy (Who gets the nudge?) & A discovered truth (Who is the subgroup?) \\ 
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	
+	\section{Anticipated Insights: Unshrouding the Turkish Banking Customer}
+	Applying the StaDISC machinery to the Alan et al. dataset allows us to formulate and test specific hypotheses regarding the ``structural vs. stochastic'' nature of financial behavior.
+	
+	\subsection{The ``Stochastic Defaulter'' Hypothesis}
+	We hypothesize that the ``Unshrouding'' effect will be most stable and pronounced among users with \textbf{high debit card frequency} but \textbf{moderate average balances}. These users have the funds (structural solvency) but lack the attention (stochastic variance). The SMS acts as a ``salience shock'' that corrects the information asymmetry. StaDISC should identify this group as a ``Short Box'' region on the calibration plot---highly predictable responsiveness.
+	
+	\subsection{The ``Commitment Device'' Interaction}
+	We hypothesize that the ``Unshrouding'' effect will be \textbf{attenuated} for users with established Auto-Bill Pay (ABP). The behavioral mechanism of ABP is to reduce the cognitive load of monitoring. An SMS warning about overdraft rates is information that the ABP user has structurally decided to ignore. StaDISC might identify this as a stable ``non-responder'' subgroup.
+	
+	\section{Conclusion}
+	The re-analysis of the Sule Alan Overdraft Experiment through the lens of StaDISC and the PCS framework is a necessary evolution in the science of behavioral intervention. By moving from the aggregate ``average'' to the stable, interpretable ``subgroup,'' we transition from a coarse understanding of ``shrouding'' to a granular map of human financial attention. This report has outlined how the combination of calibration checks, stability ranking, and subgroup discovery can disentangle the complex interactions of debit usage, auto-pay commitments, and overdraft demand, ensuring that when we claim to have ``unshrouded'' a market, we have uncovered a reality that will stand the test of time.
+	
+	\bibliographystyle{plainnat}
+	\bibliography{references}
+	
+\end{document}
