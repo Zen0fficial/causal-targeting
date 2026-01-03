@@ -785,8 +785,8 @@ def get_monotonicity_results(fitted_libraries, top_estimator_names = None,
     """
 
     aggregated_monotonicity_df = pd.DataFrame({})
-    #libraries = [fitted_libraries["pert_none"], fitted_libraries["pert_cv_0"], fitted_libraries["pert_cv_1"]]
-    libraries = [fitted_libraries["pert_none"]]
+    libraries = [fitted_libraries["pert_none"], fitted_libraries["pert_cv_0"], fitted_libraries["pert_cv_1"]]
+    # libraries = [fitted_libraries["pert_none"]]
     for name in libraries[0].keys():
         if name not in dropped_estimators:
             estimator_monotonicity_dfs = []
