@@ -685,7 +685,7 @@ def get_estimator_monotonicity_results(CATE_estimator, n_bins = 5,
         func = is_lastbin_largest
         col_name = "last_bin_is_max"
     
-    q_values = np.linspace(0, 1, n_bins+1)
+    q_values = np.linspace(0.5, 1, n_bins+1)
     col_names = [f"[{q_values[i]:.1f},{q_values[i+1]:.1f}] vs \
                  [{q_values[i+1]:.1f}, {q_values[i+2]:.1f}]" 
                  for i in range(n_bins-1)] + [col_name]
