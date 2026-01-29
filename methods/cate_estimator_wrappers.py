@@ -144,12 +144,12 @@ class CATEEstimatorResults:
         # Get subgroup indices of the desired kind
         n_samples = len(subgroup_indicator)
         if kind == "val":
-            valset_indicator = np.array([idx in self.val_indices for 
-                                         idx in range(n_samples)])
+            val_set = set(self.val_indices)
+            valset_indicator = np.array([idx in val_set for idx in range(n_samples)])
             subgroup_indicator = subgroup_indicator & valset_indicator
         elif kind == "train":
-            trainset_indicator = np.array([idx in self.train_indices for 
-                                           idx in range(n_samples)])
+            train_set = set(self.train_indices)
+            trainset_indicator = np.array([idx in train_set for idx in range(n_samples)])
             subgroup_indicator = subgroup_indicator & trainset_indicator
         else:
             pass
