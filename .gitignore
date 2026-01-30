@@ -1,0 +1,8 @@
+venv/
+output/
+data/
+causal-targeting/
+.DS_Store
+*.pkl
+*.csv
+__pycache__/
