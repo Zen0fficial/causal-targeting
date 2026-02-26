@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python packaging
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Project-specific outputs
+output/
+figs/
+**/fausebal/
+
+# Data caches / large data
+.data/
+.cache/
+**/data/**
+!data/README.md
+
+# Editors/IDEs
+.vscode/
+.idea/
+
+# Notebooks temp backups
+**/temp_backup/
+
+# Misc
+*.bak
+*.tmp 
