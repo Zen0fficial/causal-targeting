@@ -1,0 +1,20 @@
+\begin{table}[ht]
+\centering
+\caption{Sensitivity to the First-Stage Ordering Score, with $\overline{\Delta}_{0.10}$ Fixed as the Second-Stage Score}
+\label{tab:first_stage_score_sensitivity}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{First-stage score} & \multicolumn{2}{c}{\textbf{DGP1}} & \multicolumn{2}{c}{\textbf{DGP2}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& \textbf{Mean true CATE} & \textbf{Rank} & \textbf{Mean true CATE} & \textbf{Rank} \\
+\midrule
+Calibration slope & 0.0277 & 2/24 & 0.0708 & 2/24 \\
+$\bar B_{0.9}$ & 0.0241 & 11/24 & 0.0682 & 6/24 \\
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.95\linewidth}
+\footnotesize\textit{Note:} Mean true CATE is the Monte Carlo mean ground-truth CATE in the holdout subgroup above the transferred training-validation 90th-percentile threshold. Ranks compare each selected ensemble with the same 23 individual estimators. Within each replication, both specifications use the same estimators having complete support on all 12 folds and differ only in their first-stage ordering score.
+\end{minipage}
+\end{table}

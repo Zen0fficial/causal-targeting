@@ -1,0 +1,64 @@
+\begin{landscape}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
+\begin{longtable}{@{}p{0.175\linewidth}p{0.30\linewidth}p{0.32\linewidth}cc@{}}
+\caption{The 40 distinct second-stage path-selection functions evaluated during development. Each rank compares the selected ensemble's Monte Carlo mean ground-truth holdout-subgroup CATE with the same 23 individual estimators; rank 1 is best of 24.}\label{tab:scoring_functions_supplement}\\
+\toprule
+\textbf{Statistic} & \textbf{Definition} & \textbf{Meaning} & \textbf{DGP1 rank} & \textbf{DGP2 rank} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{@{}l@{}}{\tablename\ \thetable{} (continued)}\\
+\toprule
+\textbf{Statistic} & \textbf{Definition} & \textbf{Meaning} & \textbf{DGP1 rank} & \textbf{DGP2 rank} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r@{}}{\textit{Continued on next page}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\texttt{weighted\_b} & \(W_e=\frac{\sum_{f,q}\max\{\Delta_{efq},0\}}{\sum_{f,q}|\Delta_{efq}|}\) & Share of absolute targeting-contrast mass that is positive. & 2 & 2 \\
+\texttt{mean\_delta} & \(\bar\Delta_e=\frac{1}{|\mathcal F||Q|}\sum_{f,q}\Delta_{efq}\) & Average top-\(q\)-minus-rest treatment-effect contrast over \(Q\). & 3 & 2 \\
+\texttt{mean\_delta\_top10} & \(\bar\Delta_{e,0.10}=\frac{1}{|\mathcal F|}\sum_f\Delta_{ef,0.10}\) & Top-\(10\%\)-minus-rest validation contrast. & 2 & 2 \\
+\texttt{lcb\_delta\_top10} & \(\operatorname{LCB}_{\Delta,e,0.10}=\bar\Delta_{e,0.10}-z_{0.95}s_{\Delta,e,0.10}/\sqrt{N_{\Delta,e,0.10}}\) & Heuristic stability-penalized top-\(10\%\)-minus-rest contrast. It is not a confidence bound because fold contrasts are dependent. & 2 & 2 \\
+\texttt{median\_delta\_top10} & \(\operatorname{Med}_{\Delta,e,0.10}=\operatorname{median}_{f}\Delta_{ef,0.10}\) & Median finite fold-level top-\(10\%\)-minus-rest contrast. & 2 & 2 \\
+\texttt{trimmed\_mean\_delta\_top10} & \(\operatorname{Trim}_{\Delta,e,0.10}=(N-2k)^{-1}\sum_{j=k+1}^{N-k}\Delta_{e(j),0.10},\ k=\lfloor0.1N\rfloor\) & Symmetric 10\% trimmed mean of the ordered finite fold-level top-\(10\%\) contrasts. & 2 & 2 \\
+\texttt{epm} & \(\operatorname{EPM}_e=\frac{1}{|\mathcal F||Q|}\sum_{f,q}\max\{\Delta_{efq},0\}\) & Expected positive margin of the targeting contrast. & 3 & 2 \\
+\texttt{snr} & \(\operatorname{SNR}_e=\bar\Delta_e/s_{\Delta,e}\) & Signal-to-noise ratio of top-\(q\)-minus-rest contrasts. & 2 & 2 \\
+\texttt{lcb\_delta} & \(\operatorname{LCB}_{\Delta,e}=\bar\Delta_e-z_{0.95}s_{\Delta,e}/\sqrt{N_{\Delta,e}}\) & Heuristic normal-penalized mean contrast across dependent folds and fractions. & 3 & 2 \\
+\texttt{top\_lcb} & \(\frac{1}{|\mathcal F||Q|}\sum_{f,q}\{\widehat\tau(G_{efq})-z_{0.95}\operatorname{se}[\widehat\tau(G_{efq})]\}\) & Average normal-penalized top-group ATE score. & 2 & 2 \\
+\texttt{rate} & \(\operatorname{RATE}_e=\frac{1}{|\mathcal F||H|}\sum_{f,h\in H}\widehat\tau(G_{efh})\) & Average top-ATE curve over ten equally spaced \(h\) values from 0.02 to 0.10. & 2 & 2 \\
+\texttt{qini} & \(\operatorname{Qini}_e=\frac{1}{|\mathcal F||H|}\sum_{f,h\in H}\{\widehat\tau(G_{efh})-\widehat\tau(V_f)\}\) & Average uplift curve over ten equally spaced \(h\) values from 0.02 to 0.10. & 2 & 2 \\
+\texttt{cal\_slope} & \(\operatorname{CalSlope}_e=\frac{1}{|\mathcal F|}\sum_f\frac{\operatorname{Cov}_b(x_{efb},a_{efb})}{\operatorname{Var}_b(x_{efb})}\) & Candidate-ensemble calibration slope across five predicted-CATE strata; distinct from estimator-level first-stage $\operatorname{CalSlope}_m$. & 2 & 6 \\
+\texttt{cal\_r2} & \(\frac{1}{|\mathcal F|}\sum_f\left[1-\frac{\sum_b(a_{efb}-\widehat a_{efb})^2}{\sum_b(a_{efb}-\bar a_{ef})^2}\right]\) & Linear calibration \(R^2\) across the five CATE strata. & 3 & 2 \\
+\texttt{cal\_monotonicity} & \(\frac{1}{|\mathcal F|}\sum_f\binom{5}{2}^{-1}\sum_{b<c}\mathbf 1\{a_{efb}\le a_{efc}\}\) & Fraction of stratum ATE pairs monotone increasing in predicted CATE. & 3 & 2 \\
+\texttt{neg\_cal\_rmse} & \(-\frac{1}{|\mathcal F|}\sum_f\sqrt{5^{-1}\sum_b(a_{efb}-\widehat a_{efb})^2}\) & Negative calibration-line RMSE. & 2 & 2 \\
+\texttt{strata\_ate\_sd} & \(\frac{1}{|\mathcal F|}\sum_f\operatorname{sd}_b(a_{efb})\) & Dispersion of realized stratum ATEs across calibration strata. & 3 & 2 \\
+\texttt{top\_bin\_is\_best} & \(\frac{1}{|\mathcal F|}\sum_f\mathbf 1\{a_{ef,5}\ge\max_b a_{efb}\}\) & Frequency that the highest predicted-CATE bin has the largest realized ATE. & 2 & 2 \\
+\texttt{neg\_targeting\_slope} & \(-\frac{\operatorname{Cov}_{q\in Q}\{q,\bar\Delta_e(q)\}}{\operatorname{Var}_{q\in Q}(q)}\) & Negative slope of average targeting contrast versus selected fraction \(q\). & 2 & 3 \\
+\texttt{score\_iqr\_neg} & \(-|\mathcal F|^{-1}\sum_f\operatorname{IQR}\{s_{ief}:i\in V_f\}\) & Negative validation CATE-score interquartile range. & 2 & 7 \\
+\texttt{score\_sd\_neg} & \(-|\mathcal F|^{-1}\sum_f\operatorname{sd}\{s_{ief}:i\in V_f\}\) & Negative validation CATE-score standard deviation. & 2 & 6 \\
+\texttt{score\_mad\_neg} & \(-|\mathcal F|^{-1}\sum_f\operatorname{median}_{i\in V_f}|s_{ief}-\operatorname{median}_{j\in V_f}s_{jef}|\) & Negative validation CATE-score median absolute deviation. & 2 & 7 \\
+\texttt{score\_p90\_p10\_neg} & \(-|\mathcal F|^{-1}\sum_f\{P_{90}(s_{ef})-P_{10}(s_{ef})\}\) & Negative 90--10 spread of validation CATE scores. & 2 & 6 \\
+\texttt{score\_range\_neg} & \(-|\mathcal F|^{-1}\sum_f\{\max_{i\in V_f}s_{ief}-\min_{i\in V_f}s_{ief}\}\) & Negative validation CATE-score range. & 2 & 7 \\
+\texttt{top\_tail\_ratio} & \(|\mathcal F|^{-1}\sum_f\frac{\operatorname{mean}\{s_{ief}:i\in G_{ef,0.10}\}}{|\operatorname{mean}\{s_{ief}:i\in V_f\}|}\) & Ratio of top-10\% mean predicted CATE to absolute overall validation mean predicted CATE. & 2 & 7 \\
+\texttt{bbar\_epm} & \(S_e=\bar B_e\operatorname{EPM}_e\) & Product of sign frequency and expected positive margin. & 3 & 2 \\
+\texttt{bbar\_delta} & \(S_e=\bar B_e\bar\Delta_e\) & Product of sign frequency and mean contrast. & 3 & 2 \\
+\texttt{weighted\_b\_epm} & \(S_e=W_e\operatorname{EPM}_e\) & Product of weighted positive share and expected positive margin. & 3 & 2 \\
+\texttt{positive\_cal\_epm} & \(S_e=\max\{\operatorname{CalSlope}_e,0\}\operatorname{EPM}_e\) & Positive calibration slope multiplied by expected positive margin. & 2 & 5 \\
+\texttt{positive\_lcb\_epm} & \(S_e=\max\{\operatorname{LCB}_{\Delta,e},0\}\operatorname{EPM}_e\) & Positive normal-penalized contrast multiplied by expected positive margin. & 3 & 2 \\
+\texttt{positive\_cal\_bbar\_epm} & \(S_e=\max\{\operatorname{CalSlope}_e,0\}\bar B_e\operatorname{EPM}_e\) & Positive calibration slope, sign frequency, and positive margin product. & 2 & 6 \\
+\texttt{rank\_bbar\_epm} & \(S_e=\{R_e(\bar B)+R_e(\operatorname{EPM})\}/2\) & Mean within-path percentile rank of \(\bar B\) and EPM. & 3 & 2 \\
+\texttt{rank\_bbar\_delta} & \(S_e=\{R_e(\bar B)+R_e(\bar\Delta)\}/2\) & Mean within-path percentile rank of \(\bar B\) and mean contrast. & 3 & 2 \\
+\texttt{rank\_bbar\_cal\_epm} & \(S_e=\{R_e(\bar B)+R_e(\operatorname{CalSlope})+R_e(\operatorname{EPM})\}/3\) & Mean within-path percentile rank of sign frequency, calibration slope, and EPM. & 2 & 2 \\
+\texttt{maximin\_bbar\_epm} & \(S_e=\min\{R_e(\bar B),R_e(\operatorname{EPM})\}\) & Maximin within-path percentile rank over sign frequency and EPM. & 3 & 2 \\
+\texttt{cal\_slope\_x\_delta} & \(S_e=\max\{\operatorname{CalSlope}_e,0\}\bar\Delta_e\) & Product of positive calibration slope and mean contrast. & 2 & 5 \\
+\texttt{smooth\_delta\_ratio} & \(S_e=\bar\Delta_e/(|S^{\mathrm{IQR}}_e|+\varepsilon)\) & Mean contrast divided by CATE-score IQR. & 2 & 7 \\
+\texttt{smooth\_lcb\_ratio} & \(S_e=\max\{\operatorname{LCB}_{\Delta,e},0\}/(|S^{\mathrm{IQR}}_e|+\varepsilon)\) & Positive normal-penalized contrast divided by CATE-score IQR. & 2 & 6 \\
+\texttt{top\_balance\_delta} & \(S_e=A^{\mathrm{sign}}_e\bar\Delta_e\) & Mean contrast weighted by sign consistency. & 3 & 2 \\
+\texttt{stability\_x\_lcb} & \(S_e=A^{\mathrm{sign}}_e\max\{\operatorname{LCB}_{\Delta,e},0\}\) & Positive normal-penalized contrast weighted by sign consistency. & 3 & 2 \\
+\end{longtable}
+\end{landscape}
