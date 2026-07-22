@@ -1,0 +1,470 @@
+%% Journal of Business & Economic Statistics Submission
+%%
+%% VERSION 9: simulation setup and primary estimator-ranking figure added to Section 5.2.
+
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{graphicx,psfrag,epsf}
+\usepackage{enumerate}
+\usepackage{natbib}
+\usepackage{url}
+\usepackage{threeparttable}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{pdflscape}
+\usepackage{longtable}
+\usepackage{xspace}
+
+\graphicspath{{figs/}}
+
+% NOTE: To produce blinded version, replace "1" with "0" below.
+\newcommand{\blind}{1}
+
+\newcommand{\rsquare}{\ensuremath{\mathcal{R}^2_{\mathrm{C}}}}
+\newcommand{\TargetFrac}{10{\%}\xspace}
+\newcommand{\CalSlope}{\ensuremath{\operatorname{CalSlope}}}
+\newcommand{\MeanDeltaTopTen}{\ensuremath{\overline{\Delta}_{0.10}}}
+\newcommand{\MainArmName}{bill-payment bundled message}
+\newcommand{\MainSelected}{\{\texttt{x\_rf}, \texttt{r\_rflasso}\}}
+\newcommand{\MainTVN}{2{,}882}
+\newcommand{\MainHON}{723}
+\newcommand{\MainTVATE}{0.0407}
+\newcommand{\MainTVSE}{0.0175}
+\newcommand{\MainTVT}{2.32}
+\newcommand{\MainHOATE}{0.0617}
+\newcommand{\MainHOSE}{0.0346}
+\newcommand{\MainHOT}{1.78}
+\newcommand{\MainHOCI}{[0.0048,\,0.1187]}
+\newcommand{\DebitSelected}{\texttt{s\_rf}}
+\newcommand{\DebitHOATE}{-0.0724}
+\newcommand{\DebitHOSE}{0.0362}
+\newcommand{\DebitHOT}{-2.00}
+\newcommand{\FauseSelected}{\{\texttt{x\_rf}, \texttt{x\_lasso}, \texttt{t\_lasso}, \texttt{x\_logistic}\}}
+\newcommand{\FauseHOATE}{-0.0119}
+\newcommand{\FauseHOSE}{0.0306}
+\newcommand{\FauseHOT}{-0.39}
+
+% DON'T change margins - should be 1 inch all around.
+\addtolength{\oddsidemargin}{-.5in}%
+\addtolength{\evensidemargin}{-.5in}%
+\addtolength{\textwidth}{1in}%
+\addtolength{\textheight}{1.3in}%
+\addtolength{\topmargin}{-.8in}%
+
+\begin{document}
+
+\def\spacingset#1{\renewcommand{\baselinestretch}{#1}\small\normalsize}
+\spacingset{1}
+
+\if0\blind
+{
+  \title{\bf Stable Causal Targeting with Machine Learning: Application to a Behavioral Field Experiment in Consumer Finance}
+  \author{Zhen Zhong\\
+  TCL Corporate Research,\\
+  TCL Technology Group Corporation,\\
+  Guangdong, China
+  \and
+  Junni Zhang\thanks{Corresponding author: Junni Zhang, \texttt{zjn@nsd.pku.edu.cn}.}\\
+  China Center for Economic Research,\\
+  National School of Development,\\
+  Center for Statistical Science, Peking University,\\
+  Beijing, China}
+  \maketitle
+} \fi
+
+\if1\blind
+{
+  \bigskip
+  \bigskip
+  \bigskip
+  \begin{center}
+    {\LARGE\bf Stable Causal Targeting with Machine Learning: Application to a Behavioral Field Experiment in Consumer Finance}
+  \end{center}
+  \medskip
+} \fi
+
+\bigskip
+\begin{abstract}
+Many randomized field experiments exhibit heterogeneous but noisy treatment responses, making flexible machine-learning estimates of conditional average treatment effects poorly calibrated and treatment-prioritization rules unstable. We develop a practical subgroup-targeting workflow that extends Stable Discovery of Interpretable Subgroups via Calibration to a consumer-banking experiment. The procedure ranks candidate CATE estimators by validation-fold calibration slope, constructs nested equal-weight ensembles, and selects the ensemble with the largest out-of-fold treatment-effect contrast between its predicted top-\TargetFrac subgroup and the remainder. In two simulation designs with known CATE, the selected ensemble ranks near the best individual estimator in ground-truth targeting performance. Applied to a large overdraft messaging experiment at a Turkish bank, the selected ensemble identifies a top-\TargetFrac subgroup with a positive holdout treatment-effect estimate even though the sample average effect is negative. The other two treatment-arm comparisons do not produce positive holdout effects under the same procedure. These findings illustrate how calibration-based ensemble selection can support more stable personalized intervention decisions in low-signal behavioral settings.
+\end{abstract}
+
+\noindent{\it Keywords:} behavioral interventions, consumer banking, heterogeneity, model calibration, subgroup discovery
+
+\noindent{\it JEL codes:} C52, C53
+
+\newpage
+\spacingset{2}
+
+\section{Introduction}
+
+Financial institutions routinely conduct randomized field experiments to evaluate the effectiveness of promotional and informational messages \citep[e.g.][]{bertrand2010,karlan2016getting,alan2018}. While these experiments are typically designed to estimate average treatment effects, a growing body of research documents heterogeneity in individual responses. For example, \cite{bertrand2010} show that males respond more to creative content. \cite{athey2025} show that reminders encouraging students to renew their financial-aid applications before a non-binding deadline are more effective for some individuals than for others. These studies illustrate that the same informational or promotional intervention can generate different responses across individuals, underscoring the importance of accounting for treatment effect heterogeneity.
+
+Recent advances in causal machine learning have made it possible to estimate conditional average treatment effects (CATEs) and to use these estimates to guide individualized treatment assignment. \cite{athey2016} introduce causal trees, which modify regression tree methods to optimize for goodness of fit in treatment effects and to account for honest estimation. \cite{wager2018} develop causal forests method, extending random forests to estimate heterogeneous treatment effects. \cite{kunzel2019} propose several meta-learner frameworks that decompose CATE estimation into regression sub-problems, which can be solved using any supervised learning method, called base learners. The S-learner estimates the outcome by using all of the features and the treatment indicator, without giving the treatment indicator a special role. The T-learner uses base learners to estimate the conditional expectations of the outcomes separately for treated and control units, and then takes the difference. The X-learner uses the observed outcomes to estimate the unobserved individual treatment effects (ITEs), and then estimates the CATE function as if the ITEs were observed. \cite{nie2021} proposes another meta-learner method, the R-learner, which residualizes both the outcome and the treatment with respect to covariates, and then regresses the residualized outcome on the residualized treatment.
+
+In customer retention contexts, \cite{ascarza2018} demonstrate that targeting based on predicted churn performs substantially worse than targeting based on estimated treatment effects, a finding echoed in subsequent marketing studies \citep{fernandez2022}. More recently, \cite{athey2025} show that sending reminders to students with low predicted probability of renewing financial aid in the absence of the treatment can be counterproductive, and propose hybrid approaches that incorporate the strengths of predictive approaches (accurate estimation) and causal approaches (correct targeting criterion).
+
+Besides heterogeneity, treatment effects in realistic samples are often noisy, resulting in globally poorly calibrated CATE estimates and potentially unreliable treatment allocation decisions. This is especially concerning in behavioral field experiments, where effects are typically modest and signal-to-noise ratios are low. These challenges are compounded when researchers search over many possible subgroups or model specifications to try to find subgroups with desirable average treatment effects. As emphasized in the clinical trial literature on data-driven subgroup discovery (see, for example, the reviews in \citealp{ondra2016methods,huber2019comparison}), aggressive search without appropriate adjustment can easily overfit and yield subgroups that do not replicate.
+
+To address this challenge, we extend the Stable Discovery of Interpretable Subgroups via Calibration (StaDISC) approach \citep{dwivedi2020}, originally developed for discovery of interpretable subgroups in clinical trials, and adapt it to causal targeting in behavioral field experiments in consumer finance. Our approach is grounded in the predictability, computability, and stability (PCS) framework \citep{yu2018,yu2020}. \emph{Predictability} demands that models demonstrate out-of-sample prediction accuracy before their conclusions can be trusted. \emph{Computability} requires that analyses be computationally feasible and reproducible. Importantly, \emph{stability} insists that conclusions be robust to reasonable perturbations in data processing, model specification, and random sampling.
+
+Specifically, we first conduct a predictive reality check via calibration, assessing whether a set of CATE estimation models can predict treatment effect heterogeneity on validation data. We then use a calibration-slope statistic to order the candidate estimators, construct a sequence of nested equal-weight ensembles from that order, and choose the ensemble that maximizes an out-of-fold top-\TargetFrac targeting contrast. We report the selected ensemble's holdout performance, while treating it as exploratory because selection-statistic development also consulted holdout diagnostics, as disclosed in Supplementary Section~\ref{supp:development_provenance}.
+
+We apply our approach to a field experiment conducted by \citet{alan2018} at Yapi Kredi (YK), one of the largest banks in Turkey. The experiment aimed to learn about the optimal strategy for advertising its overdraft product. YK randomly sent different promotional text messages to 108,000 marginal overdrafters who had not overdrafted during the previous few months. The outcome of interest was the usage of the overdraft product. We focus on comparing a bundling message that combines an overdraft discount with automatic bill payment against the baseline message that only states overdraft availability. Although the average treatment effect is negative, the top-\TargetFrac subgroup identified by the selected mean ensemble \MainSelected yields a holdout treatment effect of \MainHOATE (SE = \MainHOSE; $t=\MainHOT$), nominally significant at the 10{\%} level.
+
+In the two Monte Carlo designs, the selected ensemble ranks second among the 23 individual estimators plus the ensemble when methods are ordered by mean ground-truth top-\TargetFrac holdout CATE. An intentional set of 40 second-stage statistics was examined, and calibration slope was compared with the quantile-based subgroup ordering check from \citet{dwivedi2020} as an alternative first-stage ordering rule. Supplementary Section~\ref{supp:development_provenance} documents their generation, evaluation, and the choice of the primary specification.
+
+The rest of the paper is organized as follows. Section~\ref{sec:data} describes the dataset from the YK study. Section~\ref{sec:cate_models} presents the CATE estimation models that we consider. Section~\ref{sec:calibration} introduces a calibration-based approach to assess the accuracy and stability of these models, and presents calibration results. Section~\ref{sec:model_selection} defines the nested calibration-slope ensemble procedure and reports the final holdout evaluation. Section~\ref{sec:conclusion} concludes. Supplementary Section~\ref{supp:development_provenance}, placed after the references, documents scoring-function generation, simulation evaluation, and first-stage sensitivity; Supplementary Section~\ref{supp:other_treatment_arms} reports the other two treatment-arm comparisons.
+
+\section{Dataset from the YK Study}
+\label{sec:data}
+
+\subsection{Motivation for Finding Heterogeneous Treatment Effects and Sample Selection}
+
+The YK experiment enrolled 108,000 checking account holders who were marginal overdrafters and had not overdrafted during the previous few months. \citet{alan2018} found that, compared to sending no message, a text message simply stating overdraft availability (``We remind you that, for your immediate cash needs, you have a Flexible Account at Yapi Kredi with [fill]TL limit. Have a nice day.'' (1TL = \$0.56 during the sample period)) \emph{increased} average overdraft usage. In contrast, a message offering a 50{\%} discount on the 60{\%} annual percentage rate (APR) overdraft rate (``Use your Yapi Kredi Flexible Account and we will give you back half of the interest rate that is accrued between now and [date] as WP.'' (WP = wallet points)) \emph{decreased} average usage. This result supports the hypothesis that unshrouding overdraft costs reduces demand, as consumers tend to underestimate them and have limited attention; explicitly mentioning the price reminds them of the cost, thereby motivating efforts to avoid overdrafts.
+
+Moreover, \citet{alan2018} found that messages bundling the overdraft discount with automatic bill payment (``Authorize automatic bill payments from your account before [date], receive up to a maximum of 30TL WP. Use your Yapi Kredi Flexible Account and we will give you back half of the interest rate that is accrued between now and [date] as WP.'') or a discount on debit card (``Use your Yapi Kredi debit card and get back 5{\%} of your purchases up to a maximum of 25TL WP between now and [date]. Use your Yapi Kredi Flexible Account and we will give you back half of the interest rate that is accrued between now and [date] as WP.'') further decreased average usage. This enhanced effect likely occurs because mentioning overdrafts together with transactions that could trigger them provides a more powerful reminder to avoid such transactions.
+
+However, the ``shrouded attributes'' framework of \citet{gabaix2006} predicts that unshrouding interventions may yield heterogeneous responses, with at least two subgroups potentially responding positively:
+\begin{enumerate}
+	\item \textbf{Financially sophisticated consumers} who were already aware of overdraft availability. For these individuals, the reminder conveys no new information and may even decrease usage by making the cost of overdraft salient. However, some may increase usage if the reminder reduces the cognitive cost of accessing a funding source they had been overlooking.
+	\item \textbf{Liquidity-constrained consumers} with acute short-term funding needs. For this group, the reminder that overdraft is available may \emph{increase} their overdraft usage by making salient a funding source they might not have actively considered, thereby lowering the cognitive barrier to borrowing.
+\end{enumerate}
+
+Our main analysis compares the bundling message that combines an overdraft discount with automatic bill payment against the baseline message that only states overdraft availability. The full sample consists of 36,024 customers: 17,981 in the treatment group that received the bundling message and 18,043 in the control group that received the baseline message. The outcome variable is a binary indicator for overdraft usage, equal to 1 if the account balance was negative during the post-intervention period and 0 otherwise. The difference-in-means estimate of the average treatment effect---that is, the mean outcome difference between treated and control units---is $-0.0138$ (standard error = $0.0049$) for the full sample. This suggests that, relative to the baseline message, the bundling message led to a modest average decrease in overdraft usage. Given the potential heterogeneity in treatment effects, we aim to identify a subgroup of customers for whom the bundling message increases average overdraft usage compared to the baseline message.
+
+To evaluate model performance, we randomly split the full sample by treatment status, allocating 20{\%} (7,205 customers) to a holdout set. The holdout observations were excluded from estimator fitting and fold-level ensemble selection. During subsequent method development, however, holdout diagnostics were consulted across candidate statistics and treatment-arm comparisons. The final holdout result is therefore exploratory rather than an independent confirmatory test. Data on the remaining 28,819 customers are used for model training and validation.
+
+\subsection{Feature Engineering and Selection}
+
+The original dataset contains a rich set of features. These include binary indicators (e.g., indicators for randomization strata, reminder frequency, campaign type, and prior service activations) and continuous variables (e.g., assets, deposits, debt levels, minimum balance, and prior credit card usage). Since some variables contain missing values, we create dummy indicators to flag missingness and impute the missing values with zero. This results in a total of 519 features.
+
+Given the high dimensionality of features, we use Lasso for feature selection to reduce the risk of overfitting. We fit separate Lasso models within the treatment and control groups among 28,819 customers, standardizing the features so that coefficient magnitudes are comparable. The top 10 features with maximum absolute coefficients from each model are shown in Figure~\ref{fig:lasso_selection}. Taking the union of these features yields a set of 14 selected features. We note that this Lasso-based feature selection step is an extension to the StaDISC workflow in \cite{dwivedi2020}, as the original methodology discretizes continuous features into binary ones and does not prescribe a specific feature selection procedure.
+
+Table \ref{tab:descriptive_lasso} presents an overview of the outcome variable and the features in the control and treatment groups in the full sample with 36,024 customers. Overall, the covariates are balanced across the two groups.
+
+\begingroup\spacingset{1}
+\input{figures/lasso_selection.tex}
+\input{tables/descriptive_lasso.tex}
+\endgroup
+
+\subsection{Data Splitting for Model Training and Validation}
+
+Following \cite{dwivedi2020}, we do not create a separate validation set. Instead, we perform a 4-fold cross-validation (CV) by randomly splitting the data on 28,819 customers stratified by treatment status. We denote this split as $\text{cv}_\text{orig}$, which is used to tune the hyperparameters for all CATE estimation models via cross-validation.
+
+A key innovation of PCS is its emphasis on stability across data perturbations. We generate two more stratified 4-fold CV splits, denoted by $\text{cv}_\text{0}$, $\text{cv}_\text{1}$. The hyperparameters tuned on $\text{cv}_{\text{orig}}$ are applied when fitting models on the training folds of $\text{cv}_\text{0}$ and $\text{cv}_\text{1}$, and the resulting models are applied to the validation folds of $\text{cv}_\text{0}$ and $\text{cv}_\text{1}$ for evaluation.
+
+Note that for each 4-fold CV split, there are 4 distinct training-validation fold pairs. This results in a total of 12 training-validation fold pairs across $\text{cv}_\text{orig}$, $\text{cv}_\text{0}$ and $\text{cv}_\text{1}$.
+
+\section{CATE Estimation Models}
+\label{sec:cate_models}
+
+For unit $i$, let $Z_i\in\{0,1\}$ denote the treatment indicator, $\bm{X}_i$ the feature vector, $Y_i(1)$ and $Y_i(0)$ the potential outcomes under treatment and control, and $Y_i=Z_iY_i(1)+(1-Z_i)Y_i(0)$ the observed outcome.
+The average treatment effect (ATE) is defined as
+\begin{equation*}
+ATE:= E[Y(1)-Y(0)].
+\end{equation*}
+The individual treatment effect (ITE) for unit $i$ is defined as
+\begin{equation*}
+D_i:= Y_i(1) - Y_i(0),
+\end{equation*}
+which is unobservable.  The responses under control and treatment are defined as
+\begin{equation*}
+\mu_0(\bm{x}):=E[Y(0)|\bm{X}=\bm{x}],\quad \mu_1(\bm{x}):=E[Y(1)|\bm{X}=\bm{x}].
+\end{equation*} The conditional average treatment effect (CATE) is defined as
+\begin{equation*}
+\tau(\bm{x}):= E[D \mid \bm{X} = \bm{x}] = E[Y(1) - Y(0) \mid \bm{X} = \bm{x}]=\mu_1(\bm{x})-\mu_0(\bm{x}).
+\end{equation*}
+
+Following \cite{dwivedi2020}, we train CATE estimation models under four meta-learner frameworks: S-learners, T-learners, X-learners, and R-learners. Their base learners are drawn from Lasso, penalized logistic regression, random forest (RF), and gradient-boosted trees (denoted by XGB because the XGBoost implementation is used). We also consider causal trees and causal forests. The full set of estimation models is as follows.
+
+\vspace{0.3cm}
+
+\noindent 1. {\it S-learners} (2 models). A S-learner \citep{kunzel2019} estimates the response function $\mu(\bm{x},z):=E[Y|\bm{X}=\bm{x},Z=z]$ using all units. Let $\widehat{\mu}(\bm{x},z)$ denote the resulting estimator. The CATE for an individual with features $\bm{x}_i$ is then estimated as $\widehat{\tau}(\bm{x}_i) = \widehat{\mu}(\bm{x}_i,1) - \widehat{\mu}(\bm{x}_i,0)$. We use RF and XGB as base learners. The resulting CATE estimation models are denoted as \texttt{s\_rf} and \texttt{s\_xgb}.
+
+\vspace{0.3cm}
+
+\noindent 2. {\it T-learners} (4 models). A T-learner \citep{kunzel2019} constructs two separate models: one to estimate $\mu_1(\bm{x})$ using the treated units with $Z_i=1$, and another to estimate $\mu_0(\bm{x})$ using the control units with $Z_i=0$. Let $\widehat{\mu}_1(\bm{x})$ and $\widehat{\mu}_0(\bm{x})$ denote the resulting estimators. The CATE for an individual with features $\bm{x}_i$ is then estimated as $\widehat{\tau}(\bm{x}_i) = \widehat{\mu}_1(\bm{x}_i) - \widehat{\mu}_0(\bm{x}_i)$. We use Lasso, logistic regression, RF and XGB as base learners. The resulting CATE estimation models are denoted as \texttt{t\_lasso}, \texttt{t\_logistic}, \texttt{t\_rf} and \texttt{t\_xgb}.
+
+\vspace{0.3cm}
+
+\noindent 3. {\it X-learners} (4 models). An X-learner \citep{kunzel2019} estimates CATE in three steps. First, it uses a T-learner to obtain the estimated response statistics $\widehat{\mu}_1(\bm{x})$ and $\widehat{\mu}_0(\bm{x})$. Second, it imputes the treatment effects: for treated units with $Z_i=1$, $\widetilde{D}_i=Y_i-\widehat{\mu}_0(\bm{x}_i)$; for control units with $Z_i=0$, $\widetilde{D}_i=\widehat{\mu}_1(\bm{x}_i)-Y_i$. It then trains two models: one on the treated units to predict $\widetilde{D}_i$ and obtain $\widehat{\tau}_1(\bm{x})$, and another on the control units to predict $\widetilde{D}_i$ and obtain $\widehat{\tau}_0(\bm{x})$. Third, the final CATE estimate is defined as a weighted average of $\widehat{\tau}_1(\bm{x})$ and $\widehat{\tau}_0(\bm{x})$. For the first step, we use Lasso, logistic regression, RF and XGB as base learners; for the second step, we use Lasso as the base learner. The resulting CATE estimation models are denoted as \texttt{x\_lasso}, \texttt{x\_logistic}, \texttt{x\_rf} and \texttt{x\_xgb}.
+
+\vspace{0.3cm}
+
+\noindent 4. {\it R-learners} (9 models). A R-learner \citep{nie2021} estimates CATE in two steps. First, it estimates the conditional expectation of the outcome, $m(\bm{x})=E[Y|\bm{X}=\bm{x}]$, and the conditional expectation of the treatment indicator, $e(\bm{x})=E[Z|\bm{X}=\bm{x}]$. Let the resulting estimators be $\widehat{m}(\bm{x})$ and $\widehat{e}(\bm{x})$. Second, it estimates CATE by performing a weighted regression of the outcome residual $Y_i-\widehat{m}(\bm{x}_i)$ on the treatment residual $Z_i-\widehat{e}(\bm{x}_i)$. We use Lasso, RF and XGB as base learners in both steps. Unlike \cite{dwivedi2020}, who randomly select only four pairs of base learners, we use all nine pairs of base learners. The resulting estimation models are denoted as \texttt{r\_lassolasso}, \texttt{r\_lassorf}, \texttt{r\_lassoxgb}, \texttt{r\_rflasso}, \texttt{r\_rfrf}, \texttt{r\_rfxgb}, \texttt{r\_xgblasso}, \texttt{r\_xgbrf}, \texttt{r\_xgbxgb}.
+
+\vspace{0.3cm}
+
+\noindent 5. {\it Causal Tree and Causal Forest} (4 models). A causal tree \citep{athey2016} recursively partitions the feature space into subgroups that differ in the magnitude of their treatment effects. An honest approach is used for estimation, with one sample being used to construct the partition and another being used to estimate treatment effects for each subgroup. A causal forest \citep{wager2018} generates an ensemble of trees, each of which is built using random subsamples of the training set and outputs a CATE estimate. The forest then averages these estimates to get the final estimate. We use two versions of the causal tree, with minimum leaf sizes of 500 and 2,000 observations, denoted by \texttt{causal\_tree\_1} and \texttt{causal\_tree\_2}. The two causal-forest versions use the same minimum leaf sizes and are denoted by \texttt{causal\_forest\_1} and \texttt{causal\_forest\_2}.
+
+\vspace{0.3cm}
+
+We tune all estimation models based on meta-learners via 4-fold cross validation using $\text{cv}_\text{orig}$. For each type of base learner, we use a common hyperparameter grid and evaluate 200 random combinations of grid values each time. The hyperparameter search spaces cover the regularization strength for Lasso; the regularization type and strength for logistic regression; the minimum samples per leaf, maximum tree depth, number of trees, and bootstrap usage for RF; and the learning rate, number of boosting iterations, and regularization parameters for XGB, among others.
+
+\section{Calibration-Based Model Check}
+\label{sec:calibration}
+
+Since the true CATE $\tau(\bm{x}_i)$ is unobserved for any unit, standard model selection criteria, such as the area under the ROC curve (AUC), cannot be directly applied for model evaluation and selection. Consequently, we follow \citet{dwivedi2020} and adopt a calibration-based approach to assess the accuracy and stability of the CATE estimation models.
+
+The key idea is to notice that the average treatment effect for a subgroup of the feature space, $\bm{G}$, can be written as
+\begin{equation}
+E[Y(1)-Y(0)|\bm{X}\in\bm{G}]=E\{E[Y(1)-Y(0)|\bm{X}]|\bm{X}\in\bm{G}\}=E[\tau(\bm{X})|\bm{X}\in\bm{G}].\label{eq:subgroupATE}
+\end{equation}
+We bin observations by their CATE estimates and treat each bin as a subgroup. The rightmost part of \eqref{eq:subgroupATE} indicates that the subgroup average treatment effect can be estimated by the bin-specific average of the CATE estimates. The leftmost part of \eqref{eq:subgroupATE} indicates that this effect can also be estimated by the difference-in-means within the subgroup. By comparing these two sets of estimates, we can assess the calibration of the CATE models.
+
+\subsection{The $\rsquare$ Score}
+For a given CATE estimation model $\mathfrak{M}$, let $\mathfrak{m}_q$ denote the $q$ quantile of the model CATE estimates from a training fold. Using a fixed grid of quantile levels $q \in \{0.1, 0.2, \dots, 0.9\}$, we define the bin boundaries as:
+\begin{equation*}
+\mathfrak{m}_0 = -\infty < \mathfrak{m}_{0.1} \leq \mathfrak{m}_{0.2} \leq \cdots \leq \mathfrak{m}_{0.9} < \mathfrak{m}_{1} = \infty.
+\end{equation*}
+Let $\mathcal{G}_j$ ($j=1,\dots,10$) be the subset of the feature space where the model CATE estimate falls in the interval $[\mathfrak{m}_{0.1(j-1)}, \mathfrak{m}_{0.1j}]$.
+
+For any set of observations $\mathcal{S}$, $\mathcal{G}_j \cap \mathcal{S}$ is the subset of observations belonging to the $j$-th subgroup, $\mathcal{G}_j$. Let $\bar{\mathfrak{M}}_{\mathcal{G}_j \cap \mathcal{S}}$ be the average model CATE estimate within this subset, and let $\widehat{\tau}_{\mathcal{G}_j \cap \mathcal{S}}$ be the difference-in-means estimate within this subset. The calibration score measures the weighted average discrepancy between these two sets of estimates:
+\begin{align}
+	\text{Cal-Score}(\mathcal{S}; \mathfrak{M}) = \sum_{j=1}^{10} \frac{|\mathcal{G}_j \cap \mathcal{S}|}{|\mathcal{S}|} \cdot \left| \bar{\mathfrak{M}}_{\mathcal{G}_j \cap \mathcal{S}} - \widehat{\tau}_{\mathcal{G}_j \cap \mathcal{S}} \right|\label{eq:calscore}
+\end{align}
+
+Let $\widehat{\tau}_{\text{ATE}}$ denote the difference-in-means estimate for all units in $\mathcal{S}$. The baseline calibration score is defined by replacing the average model CATE estimate in \eqref{eq:calscore} with this constant:
+\begin{align*}
+	\text{Cal-Score}(\mathcal{S}; \widehat{\tau}_{\text{ATE}}) = \sum_{j=1}^{10} \frac{|\mathcal{G}_j \cap \mathcal{S}|}{|\mathcal{S}|}\cdot \left| \widehat{\tau}_{\text{ATE}} - \widehat{\tau}_{\mathcal{G}_j \cap \mathcal{S}} \right|
+\end{align*}
+The $\rsquare(\mathcal{S}; \mathfrak{M})$ score normalizes the calibration score for model $\mathfrak{M}$ relative to this baseline:
+\begin{align*}
+	\rsquare(\mathcal{S}; \mathfrak{M}) &= 1 - \frac{\text{Cal-Score}(\mathcal{S}; \mathfrak{M})}{\text{Cal-Score}(\mathcal{S}; \widehat{\tau}_{\text{ATE}})}.
+\end{align*}
+This score can take any value in $(-\infty,1]$. A value close to 1 indicates good calibration, while a value close to zero or negative suggests that the model $\mathfrak{M}$ does no better than a constant ATE estimate at capturing heterogeneity, indicating potential overfitting.
+
+\subsection{Poor Global Calibration}
+
+Figure~\ref{fig:r2_hist} shows the histogram of $\rsquare$-scores across all 23 CATE estimation models. The training fold distribution (left panel) concentrates around positive values with a mean of $0.30$ and a median of $0.28$. In contrast, the validation fold distribution (right panel) concentrates around negative values with a mean of $-0.21$ and a median of $-0.13$. This systematic performance gap is characteristic of overfitting, indicating that the models are fitting noise in the training data rather than genuine treatment effect heterogeneity.
+
+Figure~\ref{fig:calibration} presents calibration plots for two models: the X-learner with RF as the base learner (\texttt{x\_rf}), and the R-learner which uses RF in the first step and Lasso in the second step (\texttt{r\_rflasso}). The plots show the average model CATE estimate, $\bar{\mathfrak{M}}_{\mathcal{G}j \cap \mathcal{S}}$, versus the corresponding difference-in-means estimate, $\widehat{\tau}_{\mathcal{G}_j \cap \mathcal{S}}$, across ten quantile-based bins for one training-validation fold pair, with error bars indicating ±1 standard error. The horizontal dashed line indicates the overall ATE estimate of $-0.0158$, computed from all 28,819 customers.
+
+On the training folds (left panels), both models show reasonable calibration, with the model estimates closely tracking the difference-in-means estimates across bins. In contrast, calibration deteriorates markedly on the validation folds (right panels) where the difference-in-means estimates exhibit high variance and frequently deviate from the monotonic trend in the model estimates.
+
+Our result echoes the finding from the original StaDISC analysis of a clinical trial dataset in \cite{dwivedi2020}, in which even advanced machine learning methods led to similarly poor global calibration.
+
+\begingroup\spacingset{1}
+\input{figures/r2_hist.tex}
+\input{figures/calibration.tex}
+\endgroup
+
+\subsection{The Quantile-based Top Subgroups}
+
+Although the CATE models calibrate poorly globally, it is possible that some models may identify subgroups with treatment effects higher than average. For $q\in (0,1)$, let $\mathcal{L}_q$ denote the subset of the feature space where the model CATE estimate is strictly below $\mathfrak{m}_{q}$. Its complement, $\mathcal{U}_q$, contains scores greater than or equal to $\mathfrak{m}_{q}$ and is called a quantile-based top subgroup. Scores tied at the cutoff are assigned to the top subgroup, so its realized share in a validation or holdout sample can differ from the nominal fraction. Different models and training folds lead to different partitions of the feature space.
+
+For a validation fold $\mathcal{S}_{\text{VF}}$ and for $q \in \{0.9,0.8,0.7,0.6,0.5\}$, we perform a directional check by investigating whether the difference-in-means estimate for units in the quantile-based top subgroup, $\mathcal{U}_q \cap \mathcal{S}_{\text{VF}}$, is larger than that for units not in the quantile-based top subgroup, $\mathcal{L}_q \cap \mathcal{S}_{\text{VF}}$. Define a binary indicator
+\begin{equation*}
+B_q = I\left(\widehat{\tau}_{\mathcal{L}_q \cap \mathcal{S}_{\text{VF}}}<  \widehat{\tau}_{\mathcal{U}_q \cap \mathcal{S}_{\text{VF}}}\right).
+\end{equation*}
+A $B_q$ value of 1 indicates that the estimated top-subgroup effect exceeds the estimated complementary-subgroup effect in that validation fold. Let $\bar{B}_q$ be the average of $B_q$ across finite validation-fold contrasts. It is the mean of a Boolean indicator for subgroup ordering: a value close to 1 indicates consistent top-versus-rest ordering, but does not measure the magnitude or global calibration of the CATE estimates.
+
+Figure~\ref{fig:box_barB_allestimator} shows box plots of $\bar{B}_{q}$ ($q \in \{0.9,0.8,0.7,0.6,0.5\}$) across all 23 models. Overall, most models exhibit poor calibration and instability. This finding contrasts with the original StaDISC analysis of a clinical trial dataset in \cite{dwivedi2020}, in which the box plots of $\bar{B}_{q}$ are all concentrated around values larger than 0.8, with medians being 0.9. Relatively speaking, the results for $q=0.9$ show the best generalization performance. Therefore, in the next section, we use the calibration plots not to choose one fixed estimator, but to order estimators by validation-fold calibration slope and then select a top-\TargetFrac targeting ensemble along the resulting nested path.
+
+\begingroup\spacingset{1}
+\input{figures/box_barB_allestimator.tex}
+\endgroup
+
+\section{Model Selection and Validation}
+\label{sec:model_selection}
+\label{sec:stability_ranking}
+
+\subsection{Model Selection Procedure}
+
+We use the validation-fold calibration slope, $\CalSlope$, to rank candidate estimators. Let $\mathcal{T}_f$ and $\mathcal{V}_f$ denote the training and validation parts of fold $f$, respectively, and let $\widehat{\tau}_{ie}^{(-f)}$ be the CATE prediction for unit $i$ from estimator $e$ trained without the validation fold. For each estimator-fold pair $(e,f)$, we form five CATE strata by cutting the training-fold predictions $\{\widehat{\tau}_{ie}^{(-f)}:i\in\mathcal{T}_f\}$ at their empirical quintiles (the 20th, 40th, 60th, and 80th percentiles of the training-fold CATE distribution) and applying those cutoffs to the validation fold. This separation ensures that the stratum boundaries are determined without using validation outcomes. Denote the resulting validation strata by $\mathcal{H}_{ef1},\ldots,\mathcal{H}_{ef5}$, ordered from lowest to highest predicted CATE.
+
+For each nonempty stratum $\mathcal{H}_{efk}$, define its mean predicted CATE and observed treatment effect as
+\[
+\bar{\mu}_{efk}
+= \frac{1}{|\mathcal{H}_{efk}|}
+\sum_{i\in\mathcal{H}_{efk}}\widehat{\tau}_{ie}^{(-f)},
+\qquad
+\widehat{\theta}_{efk}
+=
+\frac{1}{n_{1,efk}}\sum_{\substack{i\in\mathcal{H}_{efk}\\ Z_i=1}}Y_i
+-
+\frac{1}{n_{0,efk}}\sum_{\substack{i\in\mathcal{H}_{efk}\\ Z_i=0}}Y_i ,
+\]
+where $n_{z,efk}=\sum_{i\in\mathcal{H}_{efk}}I(Z_i=z)$. The fold-level calibration slope is the ordinary least-squares slope in the regression of the observed stratum ATE on the mean predicted CATE:
+\[
+(\widehat{\alpha}_{ef},\widehat{\beta}_{ef})
+=
+\arg\min_{\alpha,\beta}
+\sum_{k\in\mathcal{K}_{ef}}
+\left(\widehat{\theta}_{efk}-\alpha-\beta\bar{\mu}_{efk}\right)^2,
+\qquad
+\CalSlope_{ef}=\widehat{\beta}_{ef},
+\]
+where $\mathcal{K}_{ef}$ is the set of valid strata. We compute this slope only when at least two valid strata remain and the $\bar{\mu}_{efk}$ values are not all equal. The estimator-level statistic is the average over the 12 validation folds,
+\[
+\CalSlope_e
+=
+\frac{1}{12}
+\sum_{f=1}^{12}\CalSlope_{ef}.
+\]
+A large positive value means that higher predicted-CATE strata have higher realized treatment effects on validation data; a value near zero indicates little ranking signal; and a negative value indicates that the validation ranking is reversed. The estimators are ordered from largest to smallest $\CalSlope_e$.
+
+This ordered list defines a nested path of equal-weight mean ensembles. The first ensemble contains the top-ranked estimator alone; the second contains the top two estimators; and so on until the full candidate set is included. For ensemble $e$ in fold $f$, let $\widehat{s}_{ie}^{(-f)}$ be the average of the CATE predictions from its member estimators. We compute the top-\TargetFrac cutoff from $\{\widehat{s}_{ie}^{(-f)}:i\in\mathcal{T}_f\}$ and apply that cutoff to $\mathcal{V}_f$ to define the validation top subgroup $\mathcal{G}_{ef}^{0.10}$ and its complement $\mathcal{R}_{ef}^{0.10}$. The top subgroup includes scores tied at the training-fold 90th-percentile cutoff and therefore need not contain exactly 10{\%} of the validation observations. The fold-level targeting contrast is
+\[
+\Delta_{ef,0.10}
+=
+\widehat{\delta}\!\left(\mathcal{G}_{ef}^{0.10}\right)
+-
+\widehat{\delta}\!\left(\mathcal{R}_{ef}^{0.10}\right),
+\]
+where for any subgroup $A$,
+\[
+\widehat{\delta}(A)
+=
+\frac{\sum_{i\in A}Z_iY_i}{\sum_{i\in A}Z_i}
+-
+\frac{\sum_{i\in A}(1-Z_i)Y_i}{\sum_{i\in A}(1-Z_i)}
+\]
+is the Neyman difference-in-means estimator. We then average this contrast over the 12 validation folds,
+\[
+{\MeanDeltaTopTen}_e
+=
+\frac{1}{12}
+\sum_{f=1}^{12}\Delta_{ef,0.10}.
+\]
+The selected ensemble is the nested-path candidate with the largest ${\MeanDeltaTopTen}_e$. If two ensembles tie on $\MeanDeltaTopTen$, we keep the one with fewer estimators. Thus the public selection rule uses only two statistics: $\CalSlope$ for ordering candidate estimators and $\MeanDeltaTopTen$ for selecting one ensemble from the nested path.
+
+\subsection{Simulation Evaluation}
+\label{subsec:simulation_evaluation}
+
+We evaluate the selection procedure on two binary-outcome data-generating processes (DGPs) in which the ground-truth CATE is known, so that targeting performance can be assessed directly rather than through calibration-based proxies. The designs reproduce the salient features of the application: a binary outcome, many correlated covariates of which only a few are active, and a treatment-effect index that is small relative to the baseline outcome index, so that treatment-effect heterogeneity is weak and easily obscured by noise. In each DGP,
+\[
+X_i\sim N(0,\Sigma_d),\qquad (\Sigma_d)_{jk}=\rho_d^{|j-k|},\qquad
+Z_i\sim\operatorname{Bernoulli}(0.5),
+\]
+and the outcome is generated as
+\[
+Y_i\mid X_i,Z_i\sim\operatorname{Bernoulli}\!\left[
+\Lambda\{b_d(X_i)+(Z_i-0.5)\eta_d(X_i)\}\right],
+\qquad \Lambda(u)=\{1+\exp(-u)\}^{-1},
+\]
+where $b_d$ is the baseline outcome index and $\eta_d$ the treatment-effect index in design $d\in\{1,2\}$.
+
+DGP1 uses $n=12{,}000$ observations, 50 covariates of which five are active, and $\rho_1=0.5$:
+\begin{align*}
+b_1(X)={}&\max\{0,X_1+X_2,X_3\}+0.4(X_4^2-1)+0.3X_2X_5
+          +0.4\max\{0,X_4+X_5\}-0.3,\\
+\eta_1(X)={}&-0.05+0.15\{X_1+\log(1+\exp X_2)\}.
+\end{align*}
+DGP2 uses $n=12{,}000$ observations, 75 covariates of which ten are active, and $\rho_2=0.6$:
+\begin{align*}
+b_2(X)={}&0.8\mathbf 1\{X_1+X_2>0\}-0.6\mathbf 1\{X_3>0.5\}
+          +0.5\mathbf 1\{X_4X_5>0\}\\
+&+0.4\max(0,X_6+X_7)+0.3(X_8^2-1)-0.2X_9X_{10}-0.4,\\
+\eta_2(X)={}&-0.05+0.12X_1+0.12\log(1+\exp X_2)
+            +0.06\log(1+\exp X_3).
+\end{align*}
+Since the treatment enters the outcome model only through the term $(Z_i-0.5)\eta_d(X_i)$, the ground-truth CATE on the outcome-probability scale is
+$\tau_d(X)=\Lambda\{b_d(X)+\eta_d(X)/2\}-\Lambda\{b_d(X)-\eta_d(X)/2\}$. The evaluation criterion is the mean ground-truth CATE among holdout units assigned to the top-\TargetFrac subgroup, averaged over replications.
+
+Each replication repeats the estimation and selection pipeline of the application. We reserve 20\% of the observations as an independent holdout set and use the remaining 80\% for training and validation. We screen covariates by the union of the ten largest absolute Lasso coefficients fitted separately in the two treatment arms, as in the application. We then form three independent four-fold partitions of the training-validation data: hyperparameters of the 19 meta-learners are tuned by cross-validation on the first partition (the analogue of $\text{cv}_\text{orig}$), and the 19 tuned meta-learners together with the four fixed causal-tree and causal-forest specifications constitute the same 23-estimator library used in the application. The selection statistics $\CalSlope$ and $\MeanDeltaTopTen$ are computed over the resulting 12 training-validation fold pairs, and the nested-ensemble path is constructed and traversed exactly as described in the preceding subsection. The members of the selected ensemble are refitted on the full training-validation sample, the 90th percentile of their equal-weight score on that sample defines the top-\TargetFrac threshold, and this threshold is transferred to the holdout scores.
+
+We conduct 100 replications for each design. One DGP1 replication is excluded because its estimators could not be fitted. This leaves 99 complete replications for DGP1 and 100 for DGP2, over which all reported quantities are averaged. The selected ensemble attains a mean ground-truth top-\TargetFrac holdout CATE of 0.0277 in DGP1 and 0.0710 in DGP2. Figure~\ref{fig:primary_ensemble_barchart} ranks these means against those of the 23 individual estimators, with Monte Carlo standard errors shown as error bars. In each design, the selected ensemble ranks second among the 24 methods (23 individual estimators plus the selected ensemble), behind the S-learner with a random-forest base learner in DGP1 (\texttt{s\_rf}, mean 0.0320) and behind the X-learner with a random-forest base learner in DGP2 (\texttt{x\_rf}, mean 0.0743). Because the leading individual estimator differs across designs, no single estimator chosen ex ante performs best in both; the selected ensemble is the only method that ranks in the top two in both designs, even though its selection statistics never use the ground truth.
+
+\input{figures/primary_ensemble_barchart_v9.tex}
+
+\subsection{Final Validation of The Selected Model}
+\label{sec:final_validation}
+
+We fit the selected ensemble on the full training-validation dataset, determine the top-\TargetFrac cutoff, and apply the ensemble to the holdout test set. Table~\ref{tab:final_results} summarizes the results. For the training-validation dataset, the top-\TargetFrac subgroup yields an ATE of $\MainTVATE$ (SE = $\MainTVSE$), with a 95{\%} confidence interval that excludes zero. For the holdout test set, the top-\TargetFrac subgroup yields an ATE of $\MainHOATE$ (SE = $\MainHOSE$), with a 90{\%} confidence interval that excludes zero. The holdout estimate is positive and nominally significant at the 10{\%} level. It should not be interpreted as an unadjusted confirmatory $p$-value because the scoring-function development process included a holdout-assisted screening step.
+
+\begingroup\spacingset{1}
+\input{tables/final_results_main.tex}
+\endgroup
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In behavioral finance experiments, responses to interventions are often heterogeneous and exhibit a low signal-to-noise ratio. Our extension of the StaDISC methodology to the Turkish bank overdraft experiment has demonstrated a nuanced picture of heterogeneous treatment effects, which can inform personalized interventions. On one hand, global CATE estimation fails: all models trained exhibit poor calibration on validation folds. On the other hand, the calibration-slope nested-ensemble procedure identifies a quantile-based top-\TargetFrac subgroup with a positive holdout treatment effect, nominally significant at the 10{\%} level, even though the full-sample average effect is negative. In two simulation designs with known CATE, the selected ensemble ranks second among the 24 methods in each design and is the only method in the top two of both, even though the best individual estimator is design-specific. Our results connect to \citet{yadlowsky2025}'s observation that treatment prioritization rules can add value even when CATE estimates are miscalibrated, and to \citet{fernandez2022}'s theoretical analysis showing that ranking-based targeting requires weaker conditions than accurate effect prediction.
+
+Relative to the original StaDISC application in clinical trials \citep{dwivedi2020}, our setting has smaller average treatment effects and noisier outcomes, yet the similar steps and components---calibration-based reality checks, model comparison driven by both calibration and stability, and evaluation using a quantile-based top subgroup---still deliver a useful targeting rule. This suggests that the underlying PCS framework can serve as a general template for analyzing heterogeneous treatment effects in behavioral finance experiments. The PCS framework's emphasis on stability proves essential for separating genuine heterogeneity from statistical artifacts. Several models in our analysis achieve impressive performance on particular cross-validation splits but perform poorly when the split changes. This supports the broader principle that conclusions robust to reasonable perturbations deserve greater attention in practice.
+
+The original StaDISC methodology includes a CellSearch step to translate quantile-based subgroups into interpretable feature combinations. To reduce the search space in this step, the features are discretized and the number of features is limited. Since we omit this step, we cannot provide simple targeting rules (e.g., ``customers with balance greater than X and tenure less than Y''). Instead, a bank would need to deploy the selected model to estimate CATE for each customer. However, unlike the original approach, our models can use continuous features and accommodate a larger number of them. As the deployment of machine learning models becomes standard practice in many financial institutions, we do not view this omission as a substantive limitation.
+\section*{Acknowledgments}
+The authors thank the editor and reviewers for constructive comments.
+
+\section*{Funding}
+This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors.
+
+\section*{Disclosure Statement}
+The authors report there are no competing interests to declare.
+
+\section*{Data Availability}
+The data underlying this article are available from the original study by \citet{alan2018}. Replication code is available from the authors upon request.
+
+\newpage
+\bibliographystyle{oup-abbrvnat}
+\bibliography{references}
+
+\clearpage
+\section*{Supplementary Material}
+\addcontentsline{toc}{section}{Supplementary Material}
+\setcounter{section}{0}
+\renewcommand{\thesection}{S\arabic{section}}
+\setcounter{subsection}{0}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\setcounter{table}{0}
+\renewcommand{\thetable}{S\arabic{table}}
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\setcounter{equation}{0}
+\renewcommand{\theequation}{S\arabic{equation}}
+
+\section{Statistic Development and Evaluation}
+\label{supp:development_provenance}
+
+\subsection{Generation of the candidate statistics}
+\label{supp:statistic_generation}
+We generate the 40 candidate statistics with assistance from OpenAI GPT-5.5 (accessed July 14, 2026), screen them for computability, redundancy, and alignment with the targeting objective, and translate them into executable form. The language model was not part of the analysis pipeline. Table~\ref{tab:scoring_functions_supplement} groups the 40 statistics by purpose; the remainder of this subsection describes the fold-level quantities from which they are constructed.
+
+The targeting quantities use the Neyman difference-in-means estimator $\widehat{\delta}(\cdot)$ defined in Section~5.1. For ensemble $e$, fold $f$, and fraction $q$, let $G_{efq}$ be the set of validation units whose ensemble score is at or above the $(1-q)$-quantile of the training-fold scores and $R_{efq}$ its complement. We compute three common targeting quantities,
+\begin{align}
+\Delta_{efq}&=\widehat{\delta}(G_{efq})-\widehat{\delta}(R_{efq}),\\
+B_{efq}&=\mathbf 1\{\Delta_{efq}>0\},\\
+t_{efq}&=\Delta_{efq}/\widehat{\operatorname{se}}(\Delta_{efq}),
+\end{align}
+where the standard error of the contrast is the square root of the sum of the two subgroup variance estimates. We set a fold-fraction value to missing when a required treated or control cell is empty, and aggregate over the available finite values.
+
+The calibration quantities use five strata. We apply the 20th, 40th, 60th, and 80th percentiles of the training-fold score distribution to the validation scores. For stratum $b$, let $\bar{\mu}_{efb}$ denote the mean predicted CATE and $\widehat{\theta}_{efb}$ the validation difference-in-means estimate. We omit strata with empty treatment cells, and we compute calibration-line quantities only when at least two valid strata with nonconstant $\bar{\mu}_{efb}$ remain.
+
+The targeting-curve summaries use ten equally spaced fractions from 0.02 through 0.10. At each fraction, we sort the validation units by predicted CATE, form the corresponding top group, and calculate its ATE. The \texttt{rate} statistic averages these top-group ATEs, and \texttt{qini} averages their differences from the full validation-fold ATE. Scores labeled \texttt{lcb} use the multiplier $1.64485$ as a stability penalty; they are not confidence intervals for the cross-fold mean, because the repeated fold contrasts are dependent.
+
+Table~\ref{tab:scoring_functions_supplement} aggregates these quantities over their finite values throughout. Let $N_{\Delta,e}$ denote the number of finite $\Delta_{efq}$ values over $(f,q)$ and let $N_{\Delta,e,0.10}$ denote the number of finite top-decile fold contrasts. Bars denote arithmetic means over those finite values, $s_{\Delta,e}$ and $s_{\Delta,e,0.10}$ are their sample standard deviations, and $\bar\Delta_e(q)$ is the fold mean at fixed $q$. The quantity $\bar B_e$ is the finite-value mean of $B_{efq}$ over folds and fractions. For calibration scores, $\widehat{\theta}_{efb}^{\text{fit}}$ is the fitted value from the fold-specific OLS calibration line evaluated at $\bar{\mu}_{efb}$. For a candidate-path quantity $v_e$, $R_e(v)$ is its ascending within-path percentile rank with average ranks for ties, so larger values receive larger ranks. The sign-consistency factor is $A^{\mathrm{sign}}_e=\max\{\bar B_e,1-\bar B_e\}$, $S^{\mathrm{IQR}}_e$ is the mean validation-fold CATE-score interquartile range, and $\varepsilon=10^{-12}$. In the trimmed-mean definition, $\Delta_{e(j),0.10}$ is the $j$th order statistic of the finite top-decile fold contrasts and $N=N_{\Delta,e,0.10}$.
+
+\begingroup\spacingset{1}
+\input{tables/scoring_functions_supplement_v9.tex}
+\endgroup
+
+\subsection{Simulation evaluation and final statistic selection}
+
+We test each of the 40 candidate statistics as the second-stage selection rule in the simulation designs described in Section~\ref{subsec:simulation_evaluation}. Table~\ref{tab:second_stage_ranks} reports the ground-truth ranks of selected second-stage rules, grouped by family. Each rank compares the selected ensemble's Monte Carlo mean ground-truth holdout-subgroup CATE with the same 23 individual estimators. All rules use the calibration-slope first-stage ordering.
+
+\input{tables/second_stage_rule_ranks.tex}
+
+The targeting-contrast family, which includes the primary statistic \texttt{mean\_delta\_top10}, performs consistently well across both designs, with all five representatives ranking in the top two. The calibration-family statistics are more variable: \texttt{cal\_slope} ranks 2nd in DGP1 but falls to 6th in DGP2, while \texttt{top\_bin\_is\_best} and \texttt{neg\_cal\_rmse} both rank 2nd in both designs. The score-dispersion statistics (\texttt{score\_iqr\_neg}, \texttt{score\_sd\_neg}) show the largest rank deterioration between DGP1 and DGP2, suggesting sensitivity to the design-specific signal structure. Composite statistics that combine calibration, sign frequency, and contrast magnitude (e.g., \texttt{rank\_bbar\_cal\_epm}) rank 2nd in both designs but do not outperform the simpler \texttt{mean\_delta\_top10}. The primary statistic remains \texttt{mean\_delta\_top10}.
+
+\subsection{Sensitivity to the first-stage ordering score}
+\label{supp:first_stage_sensitivity}
+
+As a sensitivity analysis, we replace the first-stage calibration slope with $\bar B_{0.9}$, the mean subgroup-ordering indicator from \citet{dwivedi2020}, while holding the second-stage rule fixed at $\MeanDeltaTopTen$. Table~\ref{tab:first_stage_score_sensitivity} reports the results. Under $\bar B_{0.9}$ ordering, the selected ensemble has mean true top-\TargetFrac holdout CATE of 0.0241 in DGP1 and 0.0682 in DGP2, ranking 11th of 24 in DGP1 and 6th of 24 in DGP2. Under calibration-slope ordering it attains 0.0277 and 0.0708, ranking second in both designs.
+
+\input{tables/first_stage_score_sensitivity_v9.tex}
+
+\section{Other Treatment-Arm Comparisons}
+\label{supp:other_treatment_arms}
+
+We apply the same procedure to two additional treatment-arm comparisons. For the debit-card bundled message against the baseline availability message, the selected ensemble is \DebitSelected{}, with a holdout ATE of $\DebitHOATE$ (SE = $\DebitHOSE$; $t=\DebitHOT$). For the availability reminder against no message, the selected ensemble is \FauseSelected{}, with a holdout ATE of $\FauseHOATE$ (SE = $\FauseHOSE$; $t=\FauseHOT$). Neither comparison yields a positive holdout effect. As with the bill-payment comparison, these estimates are descriptive of the audited holdout splits.
+
+\begingroup\spacingset{1}
+\input{tables/final_results_debit_v9.tex}
+\endgroup
+
+\end{document}

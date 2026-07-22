@@ -1,0 +1,32 @@
+\begin{table}[ht]
+\centering
+\caption{Ground-Truth Ranks of Selected Second-Stage Selection Rules in the Two Simulation Designs}
+\label{tab:second_stage_ranks}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Family} & \textbf{Statistic} & \textbf{DGP1 rank} & \textbf{DGP2 rank} \\
+\midrule
+Targeting contrast & \texttt{mean\_delta\_top10} & 2/24 & 2/24 \\
+                   & \texttt{weighted\_b} & 2/24 & 2/24 \\
+                   & \texttt{qini} & 2/24 & 2/24 \\
+                   & \texttt{rate} & 2/24 & 2/24 \\
+                   & \texttt{neg\_targeting\_slope} & 2/24 & 3/24 \\
+\midrule
+Calibration        & \texttt{cal\_slope} & 2/24 & 6/24 \\
+                   & \texttt{top\_bin\_is\_best} & 2/24 & 2/24 \\
+                   & \texttt{neg\_cal\_rmse} & 2/24 & 2/24 \\
+\midrule
+Score dispersion   & \texttt{score\_iqr\_neg} & 2/24 & 7/24 \\
+                   & \texttt{score\_sd\_neg} & 2/24 & 6/24 \\
+\midrule
+Composite          & \texttt{bbar\_epm} & 3/24 & 2/24 \\
+                   & \texttt{positive\_cal\_bbar\_epm} & 2/24 & 6/24 \\
+                   & \texttt{rank\_bbar\_cal\_epm} & 2/24 & 2/24 \\
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.95\linewidth}
+\footnotesize\textit{Note:} The full set of 40 statistics appears in Table~\ref{tab:scoring_functions_supplement}.
+\end{minipage}
+\end{table}

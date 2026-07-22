@@ -1,51 +1,61 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Virtual environments
 .venv/
 venv/
 ENV/
 env/
-
-# Jupyter
-.ipynb_checkpoints/
-**/.ipynb_checkpoints/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Python packaging
 *.egg-info/
 *.egg
 .eggs/
 dist/
 build/
 
-# Logs
-logs/
-*.log
-
-# Project-specific outputs
-output/
-figs/
-**/fausebal/
-
-# Data caches / large data
-.data/
-.cache/
-**/data/**
-!data/README.md
-
-# Editors/IDEs
+# Editors and operating systems
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+.Rhistory
+.workbuddy/
 
-# Notebooks temp backups
-**/temp_backup/
+# Generated manuscript and presentation files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
 
-# Misc
+# Local runtime output
+/document/reproducing_code/outputs/
+/document/reproducing_code/cache_regenerated/
+/document/reproducing_code/outputs_regenerated/
+/document/reproducing_code/data/.DS_Store
+
+# Local archival and exploratory material
+/archives/
+/external_materials/
+/document/.workbuddy/
+/document/main_article/archive/
+/document/reference/legacy_source_projects/
+/document/reference/papers/arXiv-2008.10109v2/
+/document/talk/archive/
+/document/talk/build/
+/AGENTS.md
+/CLAUDE.md
+/methods/
+/src/
+/papers/
+/nested_list.py
+/*.ipynb
 *.bak
-*.tmp 
+*.tmp
