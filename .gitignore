@@ -36,20 +36,19 @@ Thumbs.db
 *.toc
 
 # Local runtime output
-/document/reproducing_code/outputs/
-/document/reproducing_code/cache_regenerated/
-/document/reproducing_code/outputs_regenerated/
-/document/reproducing_code/data/.DS_Store
+/reproducing_code/outputs/
+/reproducing_code/cache_regenerated/
+/reproducing_code/outputs_regenerated/
+/reproducing_code/data/.DS_Store
 
 # Local archival and exploratory material
 /archives/
 /external_materials/
-/document/.workbuddy/
-/document/main_article/archive/
-/document/reference/legacy_source_projects/
-/document/reference/papers/arXiv-2008.10109v2/
-/document/talk/archive/
-/document/talk/build/
+/main_article/archive/
+/reference/legacy_source_projects/
+/reference/papers/arXiv-2008.10109v2/
+/talk/archive/
+/talk/build/
 /AGENTS.md
 /CLAUDE.md
 /methods/
